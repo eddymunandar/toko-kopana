@@ -18,15 +18,41 @@ export default function AdminLayout({
           </Link>
         </div>
         
-        <nav className="flex-1 px-4 space-y-2 mt-4">
-          <Link href="/admin" className="block px-4 py-3 bg-white/10 rounded-xl font-medium text-white transition-colors">
-            Pesanan
+        <nav className="flex-1 px-4 space-y-1 mt-4 overflow-y-auto pb-4">
+          <Link href="/admin" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white transition-colors">
+            <i className="fa-solid fa-chart-pie w-6"></i> Ringkasan
           </Link>
-          <Link href="/admin/produk" className="block px-4 py-3 hover:bg-white/5 rounded-xl font-medium text-white/70 transition-colors">
-            Katalog Produk
+          <Link href="/admin/pesanan" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white/70 transition-colors">
+            <i className="fa-solid fa-box w-6"></i> Pesanan
           </Link>
-          <Link href="/admin/laporan" className="block px-4 py-3 hover:bg-white/5 rounded-xl font-medium text-white/70 transition-colors">
-            Laporan Keuangan
+          <Link href="/admin/kategori" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white/70 transition-colors">
+            <i className="fa-solid fa-tags w-6"></i> Kategori
+          </Link>
+          <Link href="/admin/produk" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white/70 transition-colors">
+            <i className="fa-solid fa-cube w-6"></i> Produk
+          </Link>
+          <Link href="/admin/anggota" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white/70 transition-colors">
+            <i className="fa-solid fa-users w-6"></i> Anggota
+          </Link>
+          <div className="pt-4 pb-2 px-4 text-xs font-bold text-white/40 uppercase tracking-wider">Keuangan</div>
+          <Link href="/admin/laporan-penjualan" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white/70 transition-colors">
+            <i className="fa-solid fa-chart-bar w-6"></i> Lap. Penjualan
+          </Link>
+          <Link href="/admin/pengeluaran" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white/70 transition-colors">
+            <i className="fa-solid fa-wallet w-6"></i> Pengeluaran
+          </Link>
+          <Link href="/admin/laporan-belanja" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white/70 transition-colors">
+            <i className="fa-solid fa-gift w-6"></i> Lap. Belanja (RAT)
+          </Link>
+          <div className="pt-4 pb-2 px-4 text-xs font-bold text-white/40 uppercase tracking-wider">Tampilan</div>
+          <Link href="/admin/pengaturan" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white/70 transition-colors">
+            <i className="fa-solid fa-cog w-6"></i> Pengaturan
+          </Link>
+          <Link href="/admin/banner" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white/70 transition-colors">
+            <i className="fa-solid fa-images w-6"></i> Banner
+          </Link>
+          <Link href="/admin/promo" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white/70 transition-colors">
+            <i className="fa-solid fa-ticket w-6"></i> Promo
           </Link>
         </nav>
         

@@ -1,46 +1,38 @@
-import { getDashboardData, getAdminExpenses } from "@/lib/api";
+"use client";
+import { useEffect, useState } from 'react';
+import { getAdminExpenses } from "@/lib/api";
 import ExpenseForm from "./ExpenseForm";
 
-export const revalidate = 0; // Disable cache
+export default function PengeluaranPage() {
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export default async function AdminReportPage() {
-  const [dashboard, expenses] = await Promise.all([
-    getDashboardData(),
-    getAdminExpenses()
-  ]);
+  async function loadData() {
+    setLoading(true);
+    try {
+      const exp = await getAdminExpenses();
+      setExpenses(exp || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-black text-foreground">Laporan Keuangan</h1>
-        <p className="text-foreground/60 mt-1">Ringkasan pendapatan dan pengeluaran toko.</p>
-      </div>
-      
-      {/* Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-2xl border border-border shadow-sm">
-          <p className="text-sm font-medium text-foreground/60 mb-1">Total Pendapatan</p>
-          <p className="text-3xl font-black text-primary">
-            Rp {Number(dashboard?.total_revenue || 0).toLocaleString('id-ID')}
-          </p>
-          <p className="text-xs text-foreground/50 mt-2">Dari {dashboard?.total_orders || 0} pesanan selesai</p>
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-black text-foreground">Pengeluaran</h1>
+          <p className="text-foreground/60 mt-1">Catat dan pantau pengeluaran operasional.</p>
         </div>
-        
-        <div className="bg-white p-6 rounded-2xl border border-border shadow-sm">
-          <p className="text-sm font-medium text-foreground/60 mb-1">Total Pengeluaran</p>
-          <p className="text-3xl font-black text-danger">
-            Rp {Number(dashboard?.total_expenses || 0).toLocaleString('id-ID')}
-          </p>
-          <p className="text-xs text-foreground/50 mt-2">Beban operasional & lainnya</p>
-        </div>
-        
-        <div className="bg-primary text-white p-6 rounded-2xl shadow-md">
-          <p className="text-sm font-medium text-white/80 mb-1">Laba Bersih</p>
-          <p className="text-3xl font-black">
-            Rp {Number(dashboard?.net_profit || 0).toLocaleString('id-ID')}
-          </p>
-          <p className="text-xs text-white/70 mt-2">Pendapatan dikurangi pengeluaran</p>
-        </div>
+        <button onClick={loadData} className="bg-primary text-white px-4 py-2 rounded-xl font-bold hover:bg-primary-hover shadow-sm flex items-center gap-2">
+          {loading ? 'Memuat...' : 'Muat Ulang'}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -58,7 +50,15 @@ export default async function AdminReportPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {expenses.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center">
+                      <div className="flex justify-center items-center">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                      </div>
+                    </td>
+                  </tr>
+                ) : expenses.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-4 py-8 text-center text-foreground/50">
                       Belum ada data pengeluaran.
@@ -87,7 +87,7 @@ export default async function AdminReportPage() {
 
         {/* Add Expense Form */}
         <div>
-          <ExpenseForm />
+          <ExpenseForm onExpenseAdded={loadData} />
         </div>
       </div>
     </div>

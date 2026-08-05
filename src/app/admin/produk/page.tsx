@@ -1,11 +1,28 @@
+"use client";
+import { useEffect, useState } from 'react';
 import { getAllProductsAdmin } from "@/lib/api";
 import ProductTableClient from "./ProductTableClient";
 
-export const revalidate = 0; // Disable cache for admin panel
+export default function AdminProductsPage() {
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-export default async function AdminProductsPage() {
-  const products = await getAllProductsAdmin();
-  
+  async function loadProducts() {
+    setLoading(true);
+    try {
+      const data = await getAllProductsAdmin();
+      setProducts(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
@@ -17,7 +34,7 @@ export default async function AdminProductsPage() {
       </div>
       
       <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm p-1">
-        <ProductTableClient initialProducts={products} />
+        <ProductTableClient initialProducts={products} loading={loading} />
       </div>
     </div>
   );

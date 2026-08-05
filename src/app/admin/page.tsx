@@ -1,72 +1,66 @@
-import { getOrders } from "@/lib/api";
-import OrderStatusSelect from "./OrderStatusSelect";
+"use client";
+import { useEffect, useState } from 'react';
+import { getDashboardData } from "@/lib/api";
 
-export const revalidate = 0; // Disable cache for admin panel
+export default function AdminOverviewPage() {
+  const [dashboard, setDashboard] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-export default async function AdminOrdersPage() {
-  const orders = await getOrders();
-  
+  async function loadData() {
+    setLoading(true);
+    try {
+      const data = await getDashboardData();
+      setDashboard(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
   return (
     <div>
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-black text-foreground">Daftar Pesanan</h1>
-          <p className="text-foreground/60 mt-1">Kelola pesanan masuk dari pelanggan Anda.</p>
+          <h1 className="text-3xl font-black text-foreground">Ringkasan</h1>
+          <p className="text-foreground/60 mt-1">Pantau kinerja toko Anda hari ini.</p>
         </div>
-        <button className="bg-primary text-white px-4 py-2 rounded-xl font-bold hover:bg-primary-hover shadow-sm">
-          Muat Ulang
+        <button onClick={loadData} className="bg-primary text-white px-4 py-2 rounded-xl font-bold hover:bg-primary-hover shadow-sm flex items-center gap-2">
+          {loading ? 'Memuat...' : 'Muat Ulang'}
         </button>
       </div>
-      
-      <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-surface-hover border-b border-border text-sm font-semibold text-foreground/70">
-                <th className="px-6 py-4">ID Pesanan</th>
-                <th className="px-6 py-4">Tanggal</th>
-                <th className="px-6 py-4">Pelanggan</th>
-                <th className="px-6 py-4">Total</th>
-                <th className="px-6 py-4">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {orders.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-foreground/50">
-                    Belum ada pesanan masuk.
-                  </td>
-                </tr>
-              ) : (
-                orders.map((order: any) => (
-                  <tr key={order.order_id} className="hover:bg-surface-hover/50 transition-colors">
-                    <td className="px-6 py-4 font-mono text-sm font-bold text-primary">
-                      {order.order_id}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-foreground/80">
-                      {new Date(order.date).toLocaleDateString('id-ID', {
-                        day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                      })}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="font-semibold text-foreground">{order.customer_name}</div>
-                      <div className="text-xs text-foreground/60">{order.customer_phone}</div>
-                    </td>
-                    <td className="px-6 py-4 font-bold">
-                      Rp {Number(order.grand_total).toLocaleString('id-ID')}
-                    </td>
-                    <td className="px-6 py-4">
-                      <OrderStatusSelect 
-                        orderId={order.order_id} 
-                        initialStatus={order.order_status || 'PENDING'} 
-                      />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white p-6 rounded-2xl border border-border shadow-sm">
+          <p className="text-sm font-medium text-foreground/60 mb-1">Total Pendapatan</p>
+          <p className="text-3xl font-black text-primary">
+            Rp {Number(dashboard?.total_revenue || 0).toLocaleString('id-ID')}
+          </p>
+          <p className="text-xs text-foreground/50 mt-2">Dari {dashboard?.total_orders || 0} pesanan</p>
         </div>
+        
+        <div className="bg-white p-6 rounded-2xl border border-border shadow-sm">
+          <p className="text-sm font-medium text-foreground/60 mb-1">Laba Bersih</p>
+          <p className="text-3xl font-black text-success">
+            Rp {Number(dashboard?.net_profit || 0).toLocaleString('id-ID')}
+          </p>
+        </div>
+        
+        <div className="bg-white p-6 rounded-2xl border border-border shadow-sm">
+          <p className="text-sm font-medium text-foreground/60 mb-1">Total Pengeluaran</p>
+          <p className="text-3xl font-black text-danger">
+            Rp {Number(dashboard?.total_expenses || 0).toLocaleString('id-ID')}
+          </p>
+        </div>
+      </div>
+      
+      <div className="bg-primary/10 border border-primary/20 rounded-2xl p-6">
+        <h2 className="text-xl font-bold text-primary mb-2">Selamat Datang di Admin Panel!</h2>
+        <p className="text-foreground/80">Silakan gunakan navigasi di sebelah kiri untuk mengelola pesanan, katalog produk, anggota koperasi, dan melihat laporan keuangan toko.</p>
       </div>
     </div>
   );

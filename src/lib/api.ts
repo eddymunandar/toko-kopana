@@ -1,6 +1,6 @@
 // URL Web App Google Apps Script
 // Menggunakan URL deployment terbaru dari Code.js
-export const API_URL = "https://script.google.com/macros/s/AKfycbzc3xIKRqsb-P8MNicgtPiNLb2G0PjPfYczzur2JYYFdT1LBuui2Ty_wrtLc1CG9CMH/exec";
+export const API_URL = "https://script.google.com/macros/s/AKfycbzWB5N5qjG5BpiJ795KpHUk9r3-CpFtxN9dVrW1_AN3ivnwxQT-OKvQTqE6MkcYR7NU/exec";
 
 export interface Product {
   id: string;
@@ -108,6 +108,9 @@ export async function updateOrderStatus(orderId: string, newStatus: string, admi
     
     return await res.json();
   } catch (err) {
+    console.error("Update order error:", err);
+    return { success: false, message: 'Gagal menghubungi server' };
+  }
 }
 
 /**
@@ -233,6 +236,210 @@ export async function deleteProductAdmin(productId: string): Promise<any> {
       body: JSON.stringify({
         action: 'deleteProductAdmin',
         payload: { productId }
+      }),
+    });
+    return await res.json();
+  } catch (err) {
+    return { success: false, message: 'Gagal menghubungi server' };
+  }
+}
+
+/**
+ * Mengambil daftar kategori
+ */
+export async function getCategories(): Promise<any[]> {
+  try {
+    const url = `${API_URL}?api=true&action=getCategories`;
+    const res = await fetch(url, { next: { revalidate: 60 } });
+    if (!res.ok) throw new Error('Failed to fetch categories');
+    
+    const json = await res.json();
+    return json.success && json.data ? json.data : [];
+  } catch (err) {
+    console.error("Error fetching categories:", err);
+    return [];
+  }
+}
+
+/**
+ * Mengambil daftar banner aktif
+ */
+export async function getBanners(): Promise<any[]> {
+  try {
+    const url = `${API_URL}?api=true&action=getBanners`;
+    const response = await fetch(url, { cache: 'no-store' });
+    const data = await response.json();
+    return data.success ? data.data : [];
+  } catch (error) {
+    console.error("Error fetching banners:", error);
+    return [];
+  }
+}
+
+// ---------------- Admin ----------------
+
+export async function getAllMembers(): Promise<any[]> {
+  try {
+    const url = `${API_URL}?api=true&action=getAllMembers`;
+    const response = await fetch(url, { cache: 'no-store' });
+    const data = await response.json();
+    return data.success ? data.data : [];
+  } catch (error) {
+    console.error("Error fetching all members:", error);
+    return [];
+  }
+}
+
+export async function saveMember(memberData: any): Promise<any> {
+  return postData('saveMember', memberData);
+}
+
+export async function deleteMember(memberNo: string): Promise<any> {
+  return postData('deleteMember', { memberNo });
+}
+
+export async function getSalesReport(startDate: string, endDate: string): Promise<any> {
+  try {
+    const url = `${API_URL}?api=true&action=getSalesReport&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+    const response = await fetch(url, { cache: 'no-store' });
+    const data = await response.json();
+    return data.success ? data.data : null;
+  } catch (error) {
+    console.error("Error fetching sales report:", error);
+    return null;
+  }
+}
+
+export async function getMemberYearlyReport(year: string | number): Promise<any> {
+  try {
+    const url = `${API_URL}?api=true&action=getMemberYearlyReport&year=${year}`;
+    const response = await fetch(url, { cache: 'no-store' });
+    const data = await response.json();
+    return data.success ? data.data : null;
+  } catch (error) {
+    console.error("Error fetching member yearly report:", error);
+    return null;
+  }
+}
+
+export async function saveCategoryAdmin(categoryData: any): Promise<any> {
+  return postData('saveCategoryAdmin', categoryData);
+}
+
+export async function deleteCategoryAdmin(categoryId: string): Promise<any> {
+  return postData('deleteCategoryAdmin', { categoryId });
+}
+
+export async function getAllBannersAdmin(): Promise<any[]> {
+  try {
+    const url = `${API_URL}?api=true&action=getAllBannersAdmin`;
+    const response = await fetch(url, { cache: 'no-store' });
+    const data = await response.json();
+    return data.success ? data.data : [];
+  } catch (error) {
+    console.error("Error fetching all banners:", error);
+    return [];
+  }
+}
+
+export async function saveBanner(bannerData: any): Promise<any> {
+  return postData('saveBanner', bannerData);
+}
+
+export async function deleteBanner(bannerId: string): Promise<any> {
+  return postData('deleteBanner', { bannerId });
+}
+
+export async function toggleBannerStatus(bannerId: string): Promise<any> {
+  return postData('toggleBannerStatus', { bannerId });
+}
+
+export async function saveSettingBanner(imgUrl: string): Promise<any> {
+  return postData('saveSettingBanner', { imgUrl });
+}
+
+export async function getSettingBanner(): Promise<any> {
+  try {
+    const url = `${API_URL}?api=true&action=getSettingBanner`;
+    const response = await fetch(url, { cache: 'no-store' });
+    const data = await response.json();
+    return data.success ? data.data : null;
+  } catch (error) {
+    console.error("Error fetching setting banner:", error);
+    return null;
+  }
+}
+
+export async function getPromosAdmin(): Promise<any[]> {
+  try {
+    const url = `${API_URL}?api=true&action=getPromosAdmin`;
+    const response = await fetch(url, { cache: 'no-store' });
+    const data = await response.json();
+    return data.success ? data.data : [];
+  } catch (error) {
+    console.error("Error fetching promos:", error);
+    return [];
+  }
+}
+
+export async function savePromo(promoData: any): Promise<any> {
+  return postData('savePromo', promoData);
+}
+
+export async function deletePromo(promoId: string): Promise<any> {
+  return postData('deletePromo', { promoId });
+}
+
+export async function togglePromoStatus(promoId: string): Promise<any> {
+  return postData('togglePromoStatus', { promoId });
+}
+
+/**
+ * Melacak status pesanan
+ */
+export async function trackOrder(orderId: string): Promise<any> {
+  try {
+    const url = `${API_URL}?api=true&action=trackOrder&orderId=${orderId}`;
+    const res = await fetch(url, { next: { revalidate: 0 } });
+    if (!res.ok) throw new Error('Failed to track order');
+    
+    const json = await res.json();
+    return json;
+  } catch (err) {
+    console.error("Error tracking order:", err);
+    return { success: false, message: "Terjadi kesalahan jaringan" };
+  }
+}
+
+/**
+ * Verifikasi Member
+ */
+export async function verifyMember(memberNo: string): Promise<any> {
+  try {
+    const url = `${API_URL}?api=true&action=verifyMember&memberNo=${memberNo}`;
+    const res = await fetch(url, { next: { revalidate: 0 } });
+    if (!res.ok) throw new Error('Failed to verify member');
+    
+    const json = await res.json();
+    return json;
+  } catch (err) {
+    console.error("Error verifying member:", err);
+    return { success: false, message: "Terjadi kesalahan jaringan" };
+  }
+}
+
+/**
+ * Upload Bukti Pembayaran
+ */
+export async function submitPaymentProof(orderId: string, base64Image: string): Promise<any> {
+  try {
+    const url = `${API_URL}?api=true`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'submitPaymentProof',
+        payload: { orderId, imageUrl: base64Image } // we use base64Image as imageUrl to pass to backend script
       }),
     });
     return await res.json();

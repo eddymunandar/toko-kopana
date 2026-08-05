@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { saveExpense } from "@/lib/api";
 
-export default function ExpenseForm() {
+export default function ExpenseForm({ onExpenseAdded }: { onExpenseAdded?: () => void }) {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
@@ -31,8 +31,7 @@ export default function ExpenseForm() {
       if (res.success) {
         setSuccess("Pengeluaran berhasil dicatat!");
         setForm({ description: "", amount: "", category: "Operasional" });
-        // Normally we'd use router.refresh() here to reload the server component data
-        window.location.reload();
+        if (onExpenseAdded) onExpenseAdded();
       } else {
         setError(res.message || "Gagal menyimpan data.");
       }

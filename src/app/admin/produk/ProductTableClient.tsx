@@ -1,12 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { saveProductAdmin, deleteProductAdmin } from "@/lib/api";
 import Image from "next/image";
 
-export default function ProductTableClient({ initialProducts }: { initialProducts: any[] }) {
+export default function ProductTableClient({ initialProducts, loading }: { initialProducts: any[], loading?: boolean }) {
   const [products, setProducts] = useState(initialProducts);
   const [loadingId, setLoadingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setProducts(initialProducts);
+  }, [initialProducts]);
+
 
   const handleToggleStatus = async (product: any) => {
     setLoadingId(product.id);
@@ -62,7 +67,15 @@ export default function ProductTableClient({ initialProducts }: { initialProduct
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
-          {products.length === 0 ? (
+          {loading ? (
+            <tr>
+              <td colSpan={6} className="px-6 py-12 text-center">
+                <div className="flex justify-center items-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              </td>
+            </tr>
+          ) : products.length === 0 ? (
             <tr>
               <td colSpan={6} className="px-6 py-12 text-center text-foreground/50">
                 Belum ada produk.
