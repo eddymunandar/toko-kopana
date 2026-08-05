@@ -9,7 +9,7 @@ import { CartProvider } from "@/components/CartProvider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Toko KOPAMA - Belanja Cepat & Murah",
+  title: "Toko KOPANA - Belanja Cepat & Murah",
   description: "Koperasi Pemuda Muhammadiyah Pamotan melayani dengan jujur dan amanah.",
 };
 

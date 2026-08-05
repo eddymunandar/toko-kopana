@@ -14,7 +14,7 @@ export default function AdminLayout({
       <aside className="w-64 bg-foreground text-background flex flex-col hidden md:flex">
         <div className="p-6">
           <Link href="/admin" className="font-black text-2xl tracking-tight text-white">
-            Admin<span className="text-primary-hover">KOPAMA</span>
+            Admin<span className="text-primary-hover">KOPANA</span>
           </Link>
         </div>
         
@@ -68,7 +68,7 @@ export default function AdminLayout({
       <main className="flex-1 flex flex-col">
         {/* Mobile Header */}
         <header className="md:hidden h-16 bg-foreground text-white flex items-center px-4">
-          <span className="font-black text-xl">Admin<span className="text-primary-hover">KOPAMA</span></span>
+          <span className="font-black text-xl">Admin<span className="text-primary-hover">KOPANA</span></span>
         </header>
         
         <div className="flex-1 p-4 md:p-8 overflow-y-auto">

@@ -11,7 +11,7 @@ export default function Header() {
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Link href="/" className="font-bold text-xl tracking-tight text-primary">
-            Toko KOPAMA
+            Toko KOPANA
           </Link>
         </div>
         

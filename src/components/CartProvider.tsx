@@ -24,7 +24,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("kopama_cart");
+    const saved = localStorage.getItem("kopana_cart");
     if (saved) {
       try {
         setCart(JSON.parse(saved));
@@ -35,7 +35,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem("kopama_cart", JSON.stringify(cart));
+      localStorage.setItem("kopana_cart", JSON.stringify(cart));
     }
   }, [cart, isLoaded]);
 

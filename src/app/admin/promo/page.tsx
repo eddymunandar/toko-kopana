@@ -103,7 +103,7 @@ export default function AdminPromoPage() {
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Kode Promo</label>
-              <input required value={form.code} onChange={e => setForm({...form, code: e.target.value.toUpperCase()})} className="w-full px-4 py-2 border rounded-xl uppercase" placeholder="KOPAMA10" />
+              <input required value={form.code} onChange={e => setForm({...form, code: e.target.value.toUpperCase()})} className="w-full px-4 py-2 border rounded-xl uppercase" placeholder="KOPANA10" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Tipe Diskon</label>

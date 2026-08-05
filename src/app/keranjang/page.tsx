@@ -134,7 +134,7 @@ export default function KeranjangPage() {
         {orderId && (
           <p className="text-lg font-bold text-primary mb-2">Order ID: {orderId}</p>
         )}
-        <p className="text-foreground/70 mb-8">Terima kasih telah berbelanja di Toko KOPAMA. Pesanan Anda sedang kami proses.</p>
+        <p className="text-foreground/70 mb-8">Terima kasih telah berbelanja di Toko KOPANA. Pesanan Anda sedang kami proses.</p>
         <div className="flex flex-col gap-4">
           <Link href="/lacak" className="inline-block bg-primary text-white font-bold px-8 py-3 rounded-full hover:bg-primary-hover transition-colors">
             Lacak Pesanan
@@ -261,7 +261,7 @@ export default function KeranjangPage() {
 
               {/* Membership */}
               <div className="pt-2 border-t border-border">
-                <h3 className="font-bold mb-3">Keanggotaan KOPAMA</h3>
+                <h3 className="font-bold mb-3">Keanggotaan KOPANA</h3>
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium mb-1">Status Keanggotaan</label>
