@@ -30,7 +30,15 @@ export default function AdminAnggotaPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const res = await saveMember(form);
+      const payload = {
+        member_no: form.memberNo,
+        name: form.name,
+        address: form.address,
+        whatsapp: form.whatsapp,
+        branch: form.branch,
+        status: form.status
+      };
+      const res = await saveMember(payload);
       if (res.success) {
         setShowForm(false);
         setForm({ memberNo: '', name: '', address: '', whatsapp: '', branch: '', status: 'Aktif' });

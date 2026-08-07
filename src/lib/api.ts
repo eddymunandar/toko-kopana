@@ -6,6 +6,8 @@ export interface Product {
   id: string;
   name: string;
   price: number;
+  promo_price?: number;
+  cost_price?: number;
   image: string;
   category: string;
   stock: number;
@@ -13,26 +15,76 @@ export interface Product {
   weight?: number;
 }
 
+const cache = new Map<string, { data: any, timestamp: number }>();
+const CACHE_TTL = 60 * 1000; // 60 seconds
+
+export function invalidateCache() {
+  cache.clear();
+}
+
+async function fetchWithCache(url: string, forceRefresh = false): Promise<any> {
+  const now = Date.now();
+  if (!forceRefresh && cache.has(url)) {
+    const cached = cache.get(url)!;
+    if (now - cached.timestamp < CACHE_TTL) {
+      return cached.data;
+    }
+  }
+  
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+  const json = await res.json();
+  
+  cache.set(url, { data: json, timestamp: now });
+  return json;
+}
+
+/**
+ * Helper function for POST requests to Google Apps Script
+ * Menggunakan text/plain agar tidak memicu preflight (CORS OPTIONS) yang tidak didukung GAS
+ */
+async function postData(action: string, payload: any = {}): Promise<any> {
+  try {
+    const url = `${API_URL}?api=true`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify({
+        action,
+        payload
+      }),
+    });
+    const result = await res.json();
+    if (result && result.success !== false) {
+      invalidateCache(); // Clear cache on successful mutation
+    }
+    return result;
+  } catch (err) {
+    console.error(`Error in postData (${action}):`, err);
+    return { success: false, message: 'Gagal menghubungi server' };
+  }
+}
+
 /**
  * Mengambil daftar produk dari Google Apps Script
  */
 export async function getProducts(): Promise<Product[]> {
   try {
-    // Tambahkan ?api=true&action=getProducts
     const url = `${API_URL}?api=true&action=getProducts`;
-    const res = await fetch(url, { next: { revalidate: 60 } }); // Cache 60 detik
+    const json = await fetchWithCache(url);
     
-    if (!res.ok) throw new Error('Failed to fetch products');
-    
-    const json = await res.json();
     if (json.success && json.data) {
       // Map data dari GAS ke struktur yang kita butuhkan
       return json.data.map((p: any) => ({
-        id: p.id,
+        id: p.product_id || p.id,
         name: p.name,
         price: Number(p.price) || 0,
+        promo_price: Number(p.promo_price) || 0,
+        cost_price: Number(p.cost_price) || 0,
         image: p.image || '',
-        category: p.category || 'Lainnya',
+        category: p.category_id || p.category || 'Lainnya',
         stock: Number(p.stock) || 0,
         description: p.description || '',
         weight: Number(p.weight) || 1000
@@ -49,29 +101,7 @@ export async function getProducts(): Promise<Product[]> {
  * Checkout keranjang belanja
  */
 export async function checkout(payload: any) {
-  try {
-    const url = `${API_URL}?api=true`;
-    
-    // GAS fetch handling for POST
-    // We send form-urlencoded or plain JSON. 
-    // Usually Google Apps Script doPost(e) needs postData.contents for JSON.
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'checkout',
-        payload: payload
-      }),
-    });
-    
-    const data = await res.json();
-    return data;
-  } catch (err) {
-    console.error("Checkout error:", err);
-    return { success: false, message: 'Gagal menghubungi server' };
-  }
+  return postData('saveOrder', payload);
 }
 
 /**
@@ -80,10 +110,7 @@ export async function checkout(payload: any) {
 export async function getOrders(): Promise<any[]> {
   try {
     const url = `${API_URL}?api=true&action=getOrdersAdmin`;
-    const res = await fetch(url, { next: { revalidate: 0 } });
-    if (!res.ok) throw new Error('Failed to fetch orders');
-    
-    const json = await res.json();
+    const json = await fetchWithCache(url);
     return json.success && json.data ? json.data : [];
   } catch (err) {
     console.error("Error fetching orders:", err);
@@ -95,22 +122,7 @@ export async function getOrders(): Promise<any[]> {
  * [Admin] Update status pesanan
  */
 export async function updateOrderStatus(orderId: string, newStatus: string, adminName: string = 'Admin'): Promise<any> {
-  try {
-    const url = `${API_URL}?api=true`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'updateOrderStatus',
-        payload: { orderId, newStatus, adminName }
-      }),
-    });
-    
-    return await res.json();
-  } catch (err) {
-    console.error("Update order error:", err);
-    return { success: false, message: 'Gagal menghubungi server' };
-  }
+  return postData('updateOrderStatus', { orderId, newStatus, adminName });
 }
 
 /**
@@ -119,10 +131,7 @@ export async function updateOrderStatus(orderId: string, newStatus: string, admi
 export async function getDashboardData(): Promise<any> {
   try {
     const url = `${API_URL}?api=true&action=getDashboardData`;
-    const res = await fetch(url, { next: { revalidate: 0 } });
-    if (!res.ok) throw new Error('Failed to fetch dashboard data');
-    
-    const json = await res.json();
+    const json = await fetchWithCache(url);
     return json.success && json.data ? json.data : null;
   } catch (err) {
     console.error("Error fetching dashboard data:", err);
@@ -136,10 +145,7 @@ export async function getDashboardData(): Promise<any> {
 export async function getAdminExpenses(): Promise<any[]> {
   try {
     const url = `${API_URL}?api=true&action=getAdminExpenses`;
-    const res = await fetch(url, { next: { revalidate: 0 } });
-    if (!res.ok) throw new Error('Failed to fetch expenses');
-    
-    const json = await res.json();
+    const json = await fetchWithCache(url);
     return json.success && json.data ? json.data : [];
   } catch (err) {
     console.error("Error fetching expenses:", err);
@@ -151,40 +157,14 @@ export async function getAdminExpenses(): Promise<any[]> {
  * [Admin] Menyimpan pengeluaran baru
  */
 export async function saveExpense(expenseData: any, adminName: string = 'Admin'): Promise<any> {
-  try {
-    const url = `${API_URL}?api=true`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'saveExpense',
-        payload: { expenseData, adminName }
-      }),
-    });
-    return await res.json();
-  } catch (err) {
-    return { success: false, message: 'Gagal menghubungi server' };
-  }
+  return postData('saveExpense', { expenseData, adminName });
 }
 
 /**
  * [Admin] Menghapus pengeluaran
  */
 export async function deleteExpense(expenseId: string, adminName: string = 'Admin'): Promise<any> {
-  try {
-    const url = `${API_URL}?api=true`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'deleteExpense',
-        payload: { expenseId, adminName }
-      }),
-    });
-    return await res.json();
-  } catch (err) {
-    return { success: false, message: 'Gagal menghubungi server' };
-  }
+  return postData('deleteExpense', { expenseId, adminName });
 }
 
 /**
@@ -193,11 +173,18 @@ export async function deleteExpense(expenseId: string, adminName: string = 'Admi
 export async function getAllProductsAdmin(): Promise<any[]> {
   try {
     const url = `${API_URL}?api=true&action=getAllProductsAdmin`;
-    const res = await fetch(url, { next: { revalidate: 0 } });
-    if (!res.ok) throw new Error('Failed to fetch products');
+    const json = await fetchWithCache(url);
     
-    const json = await res.json();
-    return json.success && json.data ? json.data : [];
+    if (json.success && json.data) {
+      return json.data.map((p: any) => ({
+        ...p,
+        id: p.product_id,
+        category: p.category_id,
+        image_url: p.image,
+        status: (p.is_active === true || p.is_active === 'true' || p.is_active === 'TRUE' || p.is_active === 1) ? 'ACTIVE' : 'INACTIVE'
+      }));
+    }
+    return [];
   } catch (err) {
     console.error("Error fetching products admin:", err);
     return [];
@@ -208,40 +195,14 @@ export async function getAllProductsAdmin(): Promise<any[]> {
  * [Admin] Menyimpan/Update produk
  */
 export async function saveProductAdmin(payload: any): Promise<any> {
-  try {
-    const url = `${API_URL}?api=true`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'saveProductAdmin',
-        payload
-      }),
-    });
-    return await res.json();
-  } catch (err) {
-    return { success: false, message: 'Gagal menghubungi server' };
-  }
+  return postData('saveProductAdmin', payload);
 }
 
 /**
  * [Admin] Hapus produk
  */
 export async function deleteProductAdmin(productId: string): Promise<any> {
-  try {
-    const url = `${API_URL}?api=true`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'deleteProductAdmin',
-        payload: { productId }
-      }),
-    });
-    return await res.json();
-  } catch (err) {
-    return { success: false, message: 'Gagal menghubungi server' };
-  }
+  return postData('deleteProductAdmin', { productId });
 }
 
 /**
@@ -250,11 +211,23 @@ export async function deleteProductAdmin(productId: string): Promise<any> {
 export async function getCategories(): Promise<any[]> {
   try {
     const url = `${API_URL}?api=true&action=getCategories`;
-    const res = await fetch(url, { next: { revalidate: 60 } });
-    if (!res.ok) throw new Error('Failed to fetch categories');
+    const json = await fetchWithCache(url);
     
-    const json = await res.json();
-    return json.success && json.data ? json.data : [];
+    if (json.success && json.data) {
+      return json.data.map((c: any) => {
+        // Fix for broken sheet headers where description was mapped to icon, and icon to ''
+        if (c[''] && typeof c[''] === 'string' && (c[''].startsWith('fa-') || c[''].includes('fa'))) {
+          return {
+            category_id: c.category_id,
+            name: c.name,
+            description: c.icon,
+            icon: c['']
+          };
+        }
+        return c;
+      });
+    }
+    return [];
   } catch (err) {
     console.error("Error fetching categories:", err);
     return [];
@@ -267,8 +240,7 @@ export async function getCategories(): Promise<any[]> {
 export async function getBanners(): Promise<any[]> {
   try {
     const url = `${API_URL}?api=true&action=getBanners`;
-    const response = await fetch(url, { cache: 'no-store' });
-    const data = await response.json();
+    const data = await fetchWithCache(url);
     return data.success ? data.data : [];
   } catch (error) {
     console.error("Error fetching banners:", error);
@@ -281,8 +253,7 @@ export async function getBanners(): Promise<any[]> {
 export async function getAllMembers(): Promise<any[]> {
   try {
     const url = `${API_URL}?api=true&action=getAllMembers`;
-    const response = await fetch(url, { cache: 'no-store' });
-    const data = await response.json();
+    const data = await fetchWithCache(url);
     return data.success ? data.data : [];
   } catch (error) {
     console.error("Error fetching all members:", error);
@@ -301,8 +272,7 @@ export async function deleteMember(memberNo: string): Promise<any> {
 export async function getSalesReport(startDate: string, endDate: string): Promise<any> {
   try {
     const url = `${API_URL}?api=true&action=getSalesReport&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
-    const response = await fetch(url, { cache: 'no-store' });
-    const data = await response.json();
+    const data = await fetchWithCache(url);
     return data.success ? data.data : null;
   } catch (error) {
     console.error("Error fetching sales report:", error);
@@ -313,8 +283,7 @@ export async function getSalesReport(startDate: string, endDate: string): Promis
 export async function getMemberYearlyReport(year: string | number): Promise<any> {
   try {
     const url = `${API_URL}?api=true&action=getMemberYearlyReport&year=${year}`;
-    const response = await fetch(url, { cache: 'no-store' });
-    const data = await response.json();
+    const data = await fetchWithCache(url);
     return data.success ? data.data : null;
   } catch (error) {
     console.error("Error fetching member yearly report:", error);
@@ -333,8 +302,7 @@ export async function deleteCategoryAdmin(categoryId: string): Promise<any> {
 export async function getAllBannersAdmin(): Promise<any[]> {
   try {
     const url = `${API_URL}?api=true&action=getAllBannersAdmin`;
-    const response = await fetch(url, { cache: 'no-store' });
-    const data = await response.json();
+    const data = await fetchWithCache(url);
     return data.success ? data.data : [];
   } catch (error) {
     console.error("Error fetching all banners:", error);
@@ -361,20 +329,33 @@ export async function saveSettingBanner(imgUrl: string): Promise<any> {
 export async function getSettingBanner(): Promise<any> {
   try {
     const url = `${API_URL}?api=true&action=getSettingBanner`;
-    const response = await fetch(url, { cache: 'no-store' });
-    const data = await response.json();
-    return data.success ? data.data : null;
-  } catch (error) {
-    console.error("Error fetching setting banner:", error);
-    return null;
+    const json = await fetchWithCache(url);
+    if (json.success) return json.data;
+    return '';
+  } catch (err) {
+    return '';
   }
+}
+
+export async function getStoreSettings(): Promise<any> {
+  try {
+    const url = `${API_URL}?api=true&action=getStoreSettings`;
+    const json = await fetchWithCache(url, true); // forceRefresh to get latest settings
+    if (json.success) return json.data;
+    return {};
+  } catch (err) {
+    return {};
+  }
+}
+
+export async function saveStoreSettings(settings: any): Promise<any> {
+  return postData('saveStoreSettings', settings);
 }
 
 export async function getPromosAdmin(): Promise<any[]> {
   try {
     const url = `${API_URL}?api=true&action=getPromosAdmin`;
-    const response = await fetch(url, { cache: 'no-store' });
-    const data = await response.json();
+    const data = await fetchWithCache(url);
     return data.success ? data.data : [];
   } catch (error) {
     console.error("Error fetching promos:", error);
@@ -400,10 +381,7 @@ export async function togglePromoStatus(promoId: string): Promise<any> {
 export async function trackOrder(orderId: string): Promise<any> {
   try {
     const url = `${API_URL}?api=true&action=trackOrder&orderId=${orderId}`;
-    const res = await fetch(url, { next: { revalidate: 0 } });
-    if (!res.ok) throw new Error('Failed to track order');
-    
-    const json = await res.json();
+    const json = await fetchWithCache(url, true); // Don't cache trackOrder as it might need real-time status
     return json;
   } catch (err) {
     console.error("Error tracking order:", err);
@@ -417,10 +395,7 @@ export async function trackOrder(orderId: string): Promise<any> {
 export async function verifyMember(memberNo: string): Promise<any> {
   try {
     const url = `${API_URL}?api=true&action=verifyMember&memberNo=${memberNo}`;
-    const res = await fetch(url, { next: { revalidate: 0 } });
-    if (!res.ok) throw new Error('Failed to verify member');
-    
-    const json = await res.json();
+    const json = await fetchWithCache(url);
     return json;
   } catch (err) {
     console.error("Error verifying member:", err);
@@ -432,18 +407,5 @@ export async function verifyMember(memberNo: string): Promise<any> {
  * Upload Bukti Pembayaran
  */
 export async function submitPaymentProof(orderId: string, base64Image: string): Promise<any> {
-  try {
-    const url = `${API_URL}?api=true`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'submitPaymentProof',
-        payload: { orderId, imageUrl: base64Image } // we use base64Image as imageUrl to pass to backend script
-      }),
-    });
-    return await res.json();
-  } catch (err) {
-    return { success: false, message: 'Gagal menghubungi server' };
-  }
+  return postData('submitPaymentProof', { orderId, imageUrl: base64Image });
 }

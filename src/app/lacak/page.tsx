@@ -70,11 +70,12 @@ export default function LacakPage() {
   };
 
   const getStatusColor = (status: string) => {
+    if (status === 'Menunggu Pembayaran' || status === 'Menunggu Verifikasi') return 'bg-warning text-white';
+    if (status === 'Telah Dibayar' || status === 'Lunas') return 'bg-blue-500 text-white';
+    if (status === 'Sedang Diproses') return 'bg-primary text-white';
+    if (status === 'Siap Dikirim' || status === 'Dalam Pengiriman') return 'bg-indigo-500 text-white';
     if (status === 'Selesai') return 'bg-success text-white';
     if (status === 'Dibatalkan') return 'bg-danger text-white';
-    if (status === 'Diproses') return 'bg-primary text-white';
-    if (status === 'Dikirim') return 'bg-blue-500 text-white';
-    if (status === 'Menunggu Pembayaran') return 'bg-warning text-white';
     return 'bg-gray-200 text-gray-800';
   };
 
@@ -86,7 +87,7 @@ export default function LacakPage() {
         <form onSubmit={handleTrack} className="flex flex-col md:flex-row gap-4">
           <input 
             type="text" 
-            placeholder="Masukkan Nomor Pesanan (Misal: TKM-20231015-000001)" 
+            placeholder="Masukkan Nomor Pesanan (Misal: TKN-20231015-000001)" 
             className="flex-1 px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary"
             value={orderId}
             onChange={(e) => setOrderId(e.target.value)}
@@ -111,8 +112,8 @@ export default function LacakPage() {
                 <p className="text-sm text-foreground/60">Order ID</p>
                 <p className="text-xl font-bold">{order.order_id}</p>
               </div>
-              <div className={`px-4 py-2 rounded-full font-bold text-sm ${getStatusColor(order.status)}`}>
-                {order.status}
+              <div className={`px-4 py-2 rounded-full font-bold text-sm ${getStatusColor(order.order_status || 'PENDING')}`}>
+                {order.order_status || 'PENDING'}
               </div>
             </div>
             

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { saveProductAdmin, deleteProductAdmin } from "@/lib/api";
 import Image from "next/image";
 
-export default function ProductTableClient({ initialProducts, loading }: { initialProducts: any[], loading?: boolean }) {
+export default function ProductTableClient({ initialProducts, loading, onEdit }: { initialProducts: any[], loading?: boolean, onEdit?: (product: any) => void }) {
   const [products, setProducts] = useState(initialProducts);
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
@@ -19,8 +19,17 @@ export default function ProductTableClient({ initialProducts, loading }: { initi
     
     try {
       const res = await saveProductAdmin({
-        ...product,
-        status: newStatus
+        product_id: product.id,
+        category_id: product.category_id || product.category,
+        name: product.name,
+        description: product.description,
+        price: product.price,
+        cost_price: product.cost_price || 0,
+        promo_price: product.promo_price || 0,
+        weight: product.weight,
+        image: product.image_url || product.image,
+        stock: product.stock,
+        is_active: newStatus === "ACTIVE"
       });
       
       if (res.success) {
@@ -60,7 +69,9 @@ export default function ProductTableClient({ initialProducts, loading }: { initi
           <tr className="bg-surface-hover border-b border-border text-sm font-semibold text-foreground/70">
             <th className="px-6 py-4 rounded-tl-xl">Produk</th>
             <th className="px-6 py-4">Kategori</th>
-            <th className="px-6 py-4">Harga</th>
+            <th className="px-6 py-4">HPP</th>
+            <th className="px-6 py-4">Harga Jual</th>
+            <th className="px-6 py-4">Harga Promo</th>
             <th className="px-6 py-4">Stok</th>
             <th className="px-6 py-4">Status</th>
             <th className="px-6 py-4 rounded-tr-xl">Aksi</th>
@@ -103,8 +114,18 @@ export default function ProductTableClient({ initialProducts, loading }: { initi
                 <td className="px-6 py-4 text-sm font-medium text-foreground/80">
                   {product.category}
                 </td>
+                <td className="px-6 py-4 text-sm text-foreground/70">
+                  {product.cost_price ? `Rp ${Number(product.cost_price).toLocaleString('id-ID')}` : <span className="text-gray-300">-</span>}
+                </td>
                 <td className="px-6 py-4 font-bold text-primary">
                   Rp {Number(product.price).toLocaleString('id-ID')}
+                </td>
+                <td className="px-6 py-4">
+                  {product.promo_price && Number(product.promo_price) > 0 ? (
+                    <span className="text-red-600 font-bold">Rp {Number(product.promo_price).toLocaleString('id-ID')}</span>
+                  ) : (
+                    <span className="text-gray-300">-</span>
+                  )}
                 </td>
                 <td className="px-6 py-4">
                   <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
@@ -127,7 +148,17 @@ export default function ProductTableClient({ initialProducts, loading }: { initi
                     {product.status === 'ACTIVE' ? 'Aktif' : 'Nonaktif'}
                   </button>
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-6 py-4 flex items-center gap-2">
+                  {onEdit && (
+                    <button 
+                      onClick={() => onEdit(product)}
+                      disabled={loadingId === product.id}
+                      className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-colors"
+                      title="Edit Produk"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    </button>
+                  )}
                   <button 
                     onClick={() => handleDelete(product.id)}
                     disabled={loadingId === product.id}

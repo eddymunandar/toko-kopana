@@ -31,10 +31,10 @@ export default function AdminBannerPage() {
     setSaving(true);
     try {
       const payload = {
-        bannerId: form.bannerId || `BNR-${Date.now().toString().slice(-6)}`,
+        banner_id: form.bannerId || `BNR-${Date.now().toString().slice(-6)}`,
         title: form.title,
         image_url: form.imageUrl,
-        link: form.link,
+        target_link: form.link,
         is_active: form.isActive
       };
       
@@ -157,7 +157,7 @@ export default function AdminBannerPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="font-bold">{item.title}</div>
-                      <div className="text-xs text-blue-500 truncate max-w-[200px]">{item.link}</div>
+                      <div className="text-xs text-blue-500 truncate max-w-[200px]">{item.target_link}</div>
                     </td>
                     <td className="px-6 py-4">
                       <button onClick={() => handleToggle(item.banner_id)} className={`px-3 py-1 rounded-full text-xs font-bold ${item.is_active ? 'bg-success/10 text-success' : 'bg-gray-200 text-gray-500'}`}>
@@ -166,7 +166,7 @@ export default function AdminBannerPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button onClick={() => {
-                        setForm({ bannerId: item.banner_id, title: item.title, imageUrl: item.image_url, link: item.link || '', isActive: item.is_active });
+                        setForm({ bannerId: item.banner_id, title: item.title, imageUrl: item.image_url, link: item.target_link || '', isActive: item.is_active });
                         setShowForm(true);
                       }} className="text-blue-500 hover:text-blue-700 text-sm font-bold mr-3">Edit</button>
                       <button onClick={() => handleDelete(item.banner_id)} className="text-danger hover:text-red-700 text-sm font-bold">Hapus</button>

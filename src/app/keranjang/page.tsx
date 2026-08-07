@@ -1,32 +1,69 @@
 "use client";
 
 import { useCart } from "@/components/CartProvider";
+import { useCustomerAuth } from "@/components/CustomerAuthProvider";
 import Link from "next/link";
-import { useState } from "react";
-import { checkout, verifyMember } from "@/lib/api";
+import { useState, useEffect } from "react";
+import Image from "next/image";
+import { checkout, verifyMember, submitPaymentProof, getStoreSettings } from "@/lib/api";
 
 export default function KeranjangPage() {
   const { cart, removeFromCart, updateQuantity, totalPrice, clearCart } = useCart();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [orderId, setOrderId] = useState("");
+  const [orderTotal, setOrderTotal] = useState(0);
+  const [orderPayment, setOrderPayment] = useState("");
   const [error, setError] = useState("");
+  
+  // Payment proof state
+  const [uploading, setUploading] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  
+  // Settings state
+  const [shippingFeeSetting, setShippingFeeSetting] = useState(5000);
+  const [freeShippingMinSetting, setFreeShippingMinSetting] = useState(150000);
+
+  useEffect(() => {
+    getStoreSettings().then(settings => {
+      if (settings.SHIPPING_FEE) setShippingFeeSetting(Number(settings.SHIPPING_FEE));
+      if (settings.FREE_SHIPPING_MIN) setFreeShippingMinSetting(Number(settings.FREE_SHIPPING_MIN));
+    }).catch(console.error);
+  }, []);
+
+  const { customer: authCustomer } = useCustomerAuth();
   
   // Form state
   const [customer, setCustomer] = useState({
-    name: "",
-    phone: "",
-    address: "",
-    district: "",
-    village: "",
-    city: "",
+    name: authCustomer?.name || "",
+    phone: authCustomer?.phone || "",
+    address: authCustomer?.address || "",
+    district: authCustomer?.district || "",
+    village: authCustomer?.village || "",
+    city: authCustomer?.city || "",
     notes: "",
     shipping: "delivery", // pickup | delivery
-    isMember: false,
-    memberNo: "",
+    isMember: authCustomer?.role === "member",
+    memberNo: authCustomer?.member_no || "",
     influencerNo: "",
     paymentMethod: "Transfer Bank" // Transfer Bank | QRIS | COD
   });
+
+  useEffect(() => {
+    if (authCustomer) {
+      setCustomer(prev => ({
+        ...prev,
+        name: authCustomer.name || prev.name,
+        phone: authCustomer.phone || prev.phone,
+        address: authCustomer.address || prev.address,
+        district: authCustomer.district || prev.district,
+        village: authCustomer.village || prev.village,
+        city: authCustomer.city || prev.city,
+        isMember: authCustomer.role === "member",
+        memberNo: authCustomer.member_no || prev.memberNo
+      }));
+    }
+  }, [authCustomer]);
 
   const [memberInfo, setMemberInfo] = useState<any>(null);
   const [memberError, setMemberError] = useState("");
@@ -54,15 +91,53 @@ export default function KeranjangPage() {
     }
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !orderId) return;
+    
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Maksimal ukuran file 2MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64String = reader.result as string;
+      
+      setUploading(true);
+      try {
+        const res = await submitPaymentProof(orderId, base64String);
+        if (res.success) {
+          setUploadSuccess(true);
+        } else {
+          alert(res.message || "Gagal upload bukti");
+        }
+      } catch (err) {
+        alert("Terjadi kesalahan saat upload");
+      } finally {
+        setUploading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     if (cart.length === 0) return;
     
-    setLoading(true);
     setError("");
+
+    // Manual validation
+    if (!customer.name.trim()) return setError("Mohon isi Nama Lengkap");
+    if (!customer.phone.trim()) return setError("Mohon isi No. WhatsApp");
+    if (!customer.address.trim()) return setError("Mohon isi Alamat Lengkap");
+    if (customer.isMember && !customer.memberNo.trim()) return setError("Mohon isi Nomor Anggota");
+    if (customer.isMember && !memberInfo) return setError("Mohon klik tombol Cek untuk verifikasi Nomor Anggota");
+
+    setLoading(true);
     
     try {
-      const shippingFee = customer.shipping === 'delivery' ? 5000 : 0;
+      const shippingFee = customer.shipping === 'delivery' ? (totalPrice >= freeShippingMinSetting ? 0 : shippingFeeSetting) : 0;
       const grandTotal = totalPrice + shippingFee;
       
       const payload = {
@@ -111,7 +186,9 @@ export default function KeranjangPage() {
       
       const res = await checkout(payload);
       if (res.success) {
-        setOrderId(res.order_id || "");
+        setOrderId(res.data?.order_id || res.order_id || "");
+        setOrderTotal(grandTotal);
+        setOrderPayment(customer.paymentMethod);
         setSuccess(true);
         clearCart();
       } else {
@@ -132,8 +209,58 @@ export default function KeranjangPage() {
         </div>
         <h1 className="text-3xl font-black mb-4">Pesanan Berhasil!</h1>
         {orderId && (
-          <p className="text-lg font-bold text-primary mb-2">Order ID: {orderId}</p>
+          <p className="text-lg font-bold text-primary mb-4">No. Order: {orderId}</p>
         )}
+        
+        <div className="bg-surface border border-border rounded-2xl p-6 text-left mb-8">
+          <h2 className="font-bold mb-4">Detail Pembayaran</h2>
+          <div className="flex justify-between mb-2">
+            <span className="text-foreground/70">Metode</span>
+            <span className="font-semibold">{orderPayment}</span>
+          </div>
+          <div className="flex justify-between mb-4 pb-4 border-b border-border">
+            <span className="text-foreground/70">Total Bayar</span>
+            <span className="font-bold text-primary text-lg">Rp {orderTotal.toLocaleString('id-ID')}</span>
+          </div>
+          
+          {orderPayment === 'Transfer Bank' && (
+            <div className="bg-primary/10 p-4 rounded-xl mt-4">
+              <p className="text-sm font-semibold mb-2">Silakan transfer ke:</p>
+              <p className="font-mono font-bold text-lg text-primary">BCA 1234567890</p>
+              <p className="text-sm text-foreground/70">a.n. Koperasi KOPANA</p>
+            </div>
+          )}
+        </div>
+        
+        {(orderPayment === 'Transfer Bank' || orderPayment === 'QRIS') && (
+          <div className="mb-8">
+            {uploadSuccess ? (
+              <div className="bg-success/10 p-4 rounded-xl border border-success/20 flex flex-col items-center">
+                <div className="w-12 h-12 bg-success text-white rounded-full flex items-center justify-center mb-3">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                </div>
+                <p className="font-bold text-success text-center">Bukti Pembayaran Diterima</p>
+                <p className="text-sm text-success/80 text-center mt-1">Pesanan akan diverifikasi admin</p>
+              </div>
+            ) : (
+              <div className="bg-warning/10 p-4 rounded-xl border border-warning/20">
+                <p className="font-bold text-warning-700 mb-2">Upload Bukti Transfer</p>
+                <p className="text-sm text-warning-700 mb-4">Silakan upload bukti transfer agar pesanan dapat diproses.</p>
+                <label className="block w-full text-center bg-white border-2 border-dashed border-warning text-warning-700 font-bold py-4 rounded-xl cursor-pointer hover:bg-warning/5 transition-colors">
+                  {uploading ? 'Mengupload...' : 'Pilih Gambar'}
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={handleFileUpload}
+                    disabled={uploading}
+                  />
+                </label>
+              </div>
+            )}
+          </div>
+        )}
+
         <p className="text-foreground/70 mb-8">Terima kasih telah berbelanja di Toko KOPANA. Pesanan Anda sedang kami proses.</p>
         <div className="flex flex-col gap-4">
           <Link href="/lacak" className="inline-block bg-primary text-white font-bold px-8 py-3 rounded-full hover:bg-primary-hover transition-colors">
@@ -196,15 +323,32 @@ export default function KeranjangPage() {
             
             <div className="flex justify-between mb-6 pb-6 border-b border-border text-foreground/80">
               <span>Ongkir</span>
-              <span className="font-medium">{customer.shipping === 'delivery' ? 'Rp 5.000' : 'Gratis'}</span>
+              <span className="font-medium">
+                {customer.shipping === 'delivery' ? (totalPrice >= freeShippingMinSetting ? 'Gratis' : `Rp ${shippingFeeSetting.toLocaleString('id-ID')}`) : 'Gratis'}
+              </span>
             </div>
 
             <div className="flex justify-between mb-6 text-lg font-black">
               <span>Total</span>
               <span className="text-primary">
-                Rp {(totalPrice + (customer.shipping === 'delivery' ? 5000 : 0)).toLocaleString('id-ID')}
+                Rp {(totalPrice + (customer.shipping === 'delivery' ? (totalPrice >= freeShippingMinSetting ? 0 : shippingFeeSetting) : 0)).toLocaleString('id-ID')}
               </span>
             </div>
+
+            {/* Promo Ongkir Message */}
+            {customer.shipping === 'delivery' && freeShippingMinSetting > 0 && (
+              <div className="mb-6 mt-[-10px]">
+                {totalPrice >= freeShippingMinSetting ? (
+                  <div className="bg-green-50 text-green-700 text-sm font-bold p-3 rounded-xl border border-green-200 flex items-center gap-2">
+                    <span>🎉</span> Selamat! Anda mendapatkan Gratis Ongkir.
+                  </div>
+                ) : (
+                  <div className="bg-blue-50 text-blue-700 text-sm p-3 rounded-xl border border-blue-200">
+                    Belanja <strong>Rp {(freeShippingMinSetting - totalPrice).toLocaleString('id-ID')}</strong> lagi untuk dapat <strong>Gratis Ongkir!</strong>
+                  </div>
+                )}
+              </div>
+            )}
 
             {error && (
               <div className="mb-4 p-3 bg-danger/10 text-danger rounded-xl text-sm font-medium">
@@ -232,15 +376,15 @@ export default function KeranjangPage() {
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium mb-1">Nama Lengkap *</label>
-                    <input required type="text" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="Budi Santoso" />
+                    <input type="text" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="Budi Santoso" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">No. WhatsApp *</label>
-                    <input required type="tel" value={customer.phone} onChange={e => setCustomer({...customer, phone: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="08123456789" />
+                    <input type="tel" value={customer.phone} onChange={e => setCustomer({...customer, phone: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="08123456789" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Alamat Lengkap *</label>
-                    <textarea required value={customer.address} onChange={e => setCustomer({...customer, address: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary h-20" placeholder="Jl. Raya Pamotan..."></textarea>
+                    <textarea value={customer.address} onChange={e => setCustomer({...customer, address: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary h-20" placeholder="Jl. Raya Pamotan..."></textarea>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -279,7 +423,7 @@ export default function KeranjangPage() {
                     <div>
                       <label className="block text-sm font-medium mb-1">Nomor Anggota *</label>
                       <div className="flex gap-2">
-                        <input required type="text" value={customer.memberNo} onChange={e => setCustomer({...customer, memberNo: e.target.value})} className="flex-1 px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="KPM-XXX" />
+                        <input type="text" value={customer.memberNo} onChange={e => setCustomer({...customer, memberNo: e.target.value})} className="flex-1 px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="KPM-XXX" />
                         <button type="button" onClick={handleVerifyMember} disabled={verifying || !customer.memberNo} className="bg-gray-200 text-gray-800 px-4 py-2 rounded-xl font-medium hover:bg-gray-300 disabled:opacity-50">
                           {verifying ? 'Cek...' : 'Cek'}
                         </button>
