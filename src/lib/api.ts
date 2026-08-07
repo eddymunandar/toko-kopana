@@ -409,3 +409,17 @@ export async function verifyMember(memberNo: string): Promise<any> {
 export async function submitPaymentProof(orderId: string, base64Image: string): Promise<any> {
   return postData('submitPaymentProof', { orderId, imageUrl: base64Image });
 }
+
+// --- Customer Auth API ---
+
+export async function registerCustomer(payload: any) {
+  return postData('registerCustomer', payload);
+}
+
+export async function loginCustomer(payload: any) {
+  return postData('loginCustomer', payload);
+}
+
+export async function updateCustomerProfile(payload: any) {
+  return postData('updateCustomerProfile', payload);
+}

@@ -57,8 +57,6 @@ export function CustomerAuthProvider({ children }: { children: React.ReactNode }
     }
   };
 
-  if (!mounted) return <>{children}</>; // Provide children instead of null to prevent hydration mismatch for non-auth components
-
   return (
     <CustomerAuthContext.Provider value={{ customer, login, logout, updateProfile }}>
       {children}
