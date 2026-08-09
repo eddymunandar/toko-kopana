@@ -34,8 +34,8 @@ function PrintStruk({ order }: { order: any }) {
   <p>No: <b>${order.order_id}</b></p>
   <p>Tgl: ${new Date(order.date).toLocaleString('id-ID')}</p>
   <p>Pelanggan: ${order.customer_name || '-'}</p>
-  <p>No. HP: ${order.customer_phone || '-'}</p>
-  <p>Alamat: ${order.customer_address || '-'}</p>
+  <p>No. HP: ${order.whatsapp || order.customer_phone || '-'}</p>
+  <p>Alamat: ${order.address || order.customer_address || '-'}</p>
   <p>No. Anggota: ${order.member_no || '-'}</p>
   <div class="divider"></div>
   <table>
@@ -49,12 +49,13 @@ function PrintStruk({ order }: { order: any }) {
   <div class="divider"></div>
   <table>
     <tr><td>Subtotal</td><td class="right">Rp${Number(order.subtotal || order.grand_total).toLocaleString('id-ID')}</td></tr>
-    ${order.shipping_cost ? `<tr><td>Ongkir</td><td class="right">Rp${Number(order.shipping_cost).toLocaleString('id-ID')}</td></tr>` : ''}
-    ${order.discount ? `<tr><td>Diskon</td><td class="right">- Rp${Number(order.discount).toLocaleString('id-ID')}</td></tr>` : ''}
+    <tr><td>Ongkir</td><td class="right">Rp${Number(order.shipping_fee || order.shipping_cost || 0).toLocaleString('id-ID')}</td></tr>
+    ${order.discount || order.promo_discount ? `<tr><td>Diskon</td><td class="right">- Rp${Number(order.discount || order.promo_discount).toLocaleString('id-ID')}</td></tr>` : ''}
     <tr class="total"><td>TOTAL</td><td class="right">Rp${Number(order.grand_total).toLocaleString('id-ID')}</td></tr>
   </table>
   <div class="divider"></div>
-  <p class="center">Status: <b>${order.order_status || 'PENDING'}</b></p>
+  <p class="center">Status Pembayaran: <b>${(order.payment_status === 'PAID' || ['Telah Dibayar', 'Lunas', 'Sedang Diproses', 'Siap Dikirim', 'Dalam Pengiriman', 'Selesai'].includes(order.order_status)) ? 'LUNAS' : (order.payment_status || 'BELUM LUNAS')}</b></p>
+  <p class="center">Status Pesanan: <b>${order.order_status || 'PENDING'}</b></p>
   <p class="center">Terima kasih telah berbelanja!</p>
   <br/>
   <div class="center"><button onclick="window.print()">🖨️ Print Struk</button></div>

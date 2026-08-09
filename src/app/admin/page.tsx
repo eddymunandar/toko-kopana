@@ -2,14 +2,27 @@
 import { useEffect, useState } from 'react';
 import { getDashboardData, getSalesReport, getAllProductsAdmin } from "@/lib/api";
 
+function StatCard({ label, value, sub, color, bg, icon }: any) {
+  return (
+    <div className={`${bg} p-5 rounded-2xl border border-border shadow-sm`}>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-sm font-semibold text-foreground/60">{label}</p>
+        <span className="text-2xl">{icon}</span>
+      </div>
+      <p className={`text-xl font-black ${color}`}>{value}</p>
+      {sub && <p className="text-xs text-foreground/50 mt-1">{sub}</p>}
+    </div>
+  );
+}
+
 // Simple bar chart component
 function BarChart({ data }: { data: { label: string; value: number }[] }) {
   const max = Math.max(...data.map(d => d.value), 1);
   return (
     <div className="flex items-end gap-1.5 h-36">
       {data.map((d, i) => (
-        <div key={i} className="flex-1 flex flex-col items-center gap-1">
-          <span className="text-[10px] text-gray-500 font-medium">
+        <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1 h-full">
+          <span className="text-[10px] text-gray-500 font-medium h-4 flex items-end">
             {d.value > 0 ? (d.value >= 1000000 ? `${(d.value/1000000).toFixed(1)}jt` : `${(d.value/1000).toFixed(0)}k`) : ''}
           </span>
           <div
@@ -17,7 +30,7 @@ function BarChart({ data }: { data: { label: string; value: number }[] }) {
             style={{ height: `${Math.max((d.value / max) * 100, d.value > 0 ? 4 : 0)}%` }}
             title={`Rp ${d.value.toLocaleString('id-ID')}`}
           />
-          <span className="text-[10px] text-gray-400 font-medium">{d.label}</span>
+          <span className="text-[10px] text-gray-400 font-medium mt-1">{d.label}</span>
         </div>
       ))}
     </div>
@@ -28,6 +41,7 @@ const MONTHS = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov
 
 export default function AdminOverviewPage() {
   const [dashboard, setDashboard] = useState<any>(null);
+  const [salesData, setSalesData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState<{ label: string; value: number }[]>([]);
   const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
@@ -36,14 +50,20 @@ export default function AdminOverviewPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [dashData, products] = await Promise.all([
+      const now = new Date();
+      const currentMonthStart = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+      const endOfMonthD = new Date(now.getFullYear(), now.getMonth()+1, 0);
+      const currentMonthEnd = `${endOfMonthD.getFullYear()}-${String(endOfMonthD.getMonth()+1).padStart(2,'0')}-${String(endOfMonthD.getDate()).padStart(2,'0')}`;
+
+      const [dashData, products, currentSales] = await Promise.all([
         getDashboardData(),
         getAllProductsAdmin(),
+        getSalesReport(currentMonthStart, currentMonthEnd),
       ]);
       setDashboard(dashData);
+      setSalesData(currentSales);
 
       // Build 6-month sales chart using getSalesReport
-      const now = new Date();
       const months: { label: string; value: number }[] = [];
       for (let i = 5; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -51,8 +71,13 @@ export default function AdminOverviewPage() {
         const endD = new Date(d.getFullYear(), d.getMonth()+1, 0);
         const end = `${endD.getFullYear()}-${String(endD.getMonth()+1).padStart(2,'0')}-${String(endD.getDate()).padStart(2,'0')}`;
         try {
-          const rep = await getSalesReport(start, end);
-          months.push({ label: MONTHS[d.getMonth()], value: Number(rep?.total_revenue || 0) });
+          // Optimization: If it's the current month, just use currentSales
+          if (i === 0) {
+            months.push({ label: MONTHS[d.getMonth()], value: Number(currentSales?.total_revenue || 0) });
+          } else {
+            const rep = await getSalesReport(start, end);
+            months.push({ label: MONTHS[d.getMonth()], value: Number(rep?.total_revenue || 0) });
+          }
         } catch {
           months.push({ label: MONTHS[d.getMonth()], value: 0 });
         }
@@ -60,7 +85,10 @@ export default function AdminOverviewPage() {
       setChartData(months);
 
       // Low stock products
-      const low = (products || []).filter((p: any) => Number(p.stock) <= LOW_STOCK_THRESHOLD && Number(p.stock) >= 0);
+      const low = (products || []).filter((p: any) => {
+        const threshold = p.min_stock !== undefined ? Number(p.min_stock) : LOW_STOCK_THRESHOLD;
+        return Number(p.stock) <= threshold && Number(p.stock) >= 0;
+      });
       setLowStockProducts(low);
     } catch (err) {
       console.error(err);
@@ -71,33 +99,13 @@ export default function AdminOverviewPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  const statCards = [
-    {
-      label: 'Total Pendapatan',
-      value: `Rp ${Number(dashboard?.total_sales_month || 0).toLocaleString('id-ID')}`,
-      sub: `Bulan ini (Dari ${dashboard?.completed_orders || 0} pesanan)`,
-      color: 'text-primary',
-      bg: 'bg-blue-50',
-      icon: '💰',
-    },
-    {
-      label: 'Laba Bersih',
-      value: `Rp ${(Number(dashboard?.total_sales_month || 0) - Number(dashboard?.total_expenses_month || 0) - Number(dashboard?.total_cogs_month || 0)).toLocaleString('id-ID')}`,
-      sub: 'Pendapatan - Pengeluaran & HPP',
-      color: 'text-green-600',
-      bg: 'bg-green-50',
-      icon: '📈',
-    },
-    {
-      label: 'Total Pengeluaran',
-      value: `Rp ${Number(dashboard?.total_expenses_month || 0).toLocaleString('id-ID')}`,
-      sub: 'Bulan ini',
-      color: 'text-red-500',
-      bg: 'bg-red-50',
-      icon: '💸',
-    },
-  ];
-
+  const fmt = (n: number) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
+  const revenue = Number(salesData?.total_revenue || 0);
+  const cogs = Number(salesData?.total_cogs || 0);
+  const expenses = Number(salesData?.total_expenses || 0);
+  const grossProfit = revenue - cogs;
+  const netProfit = salesData?.net_profit ?? (grossProfit - expenses);
+  const isProfit = netProfit >= 0;
 
   return (
     <div>
@@ -121,19 +129,42 @@ export default function AdminOverviewPage() {
         </button>
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {statCards.map((card, i) => (
-          <div key={i} className={`${card.bg} p-5 rounded-2xl border border-border shadow-sm`}>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold text-foreground/60">{card.label}</p>
-              <span className="text-2xl">{card.icon}</span>
+      {loading ? (
+        <div className="flex justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
+      ) : (
+        <>
+          {/* Laporan Laba Rugi */}
+          <section className="mb-6">
+            <h2 className="text-xs font-bold text-foreground/50 mb-3 uppercase tracking-widest flex items-center gap-2"><i className="fa-solid fa-sack-dollar text-primary"></i> Laporan Laba Rugi Bulan Ini</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <StatCard label="Omzet (Pendapatan Kotor)" value={fmt(revenue)} sub="Total penjualan pesanan selesai" icon="💵" bg="bg-blue-50" color="text-primary" />
+              <StatCard label="Total HPP (Modal)" value={fmt(cogs)} sub="Harga pokok produk yang terjual" icon="📦" bg="bg-orange-50" color="text-orange-600" />
+              <StatCard label="Laba Kotor" value={fmt(grossProfit)} sub="Omzet dikurangi HPP" icon="📊" bg={grossProfit >= 0 ? "bg-green-50" : "bg-red-50"} color={grossProfit >= 0 ? "text-success" : "text-danger"} />
+              <StatCard label="Total Pengeluaran" value={fmt(expenses)} sub="Biaya operasional dan ongkos kirim" icon="💸" bg="bg-red-50" color="text-danger" />
+              <StatCard label="Margin Keuntungan" value={revenue > 0 ? `${((grossProfit / revenue) * 100).toFixed(1)}%` : '0%'} sub="Laba kotor dibagi Omzet" icon="📈" bg="bg-purple-50" color="text-purple-600" />
+              <div className={`${isProfit ? 'bg-green-100 border-green-300' : 'bg-red-100 border-red-300'} p-5 rounded-2xl border-2 shadow-sm`}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-bold text-foreground/70">LABA BERSIH</p>
+                  <span className="text-2xl">{isProfit ? '🤑' : '😟'}</span>
+                </div>
+                <p className={`text-2xl font-black ${isProfit ? 'text-green-700' : 'text-red-700'}`}>{fmt(netProfit)}</p>
+                <p className="text-xs text-foreground/50 mt-1">Laba Kotor - Total Pengeluaran</p>
+              </div>
             </div>
-            <p className={`text-2xl font-black ${card.color}`}>{loading ? '...' : card.value}</p>
-            <p className="text-xs text-foreground/50 mt-1">{card.sub}</p>
-          </div>
-        ))}
-      </div>
+          </section>
+
+          {/* Ringkasan Pesanan */}
+          <section className="mb-6">
+            <h2 className="text-xs font-bold text-foreground/50 mb-3 uppercase tracking-widest flex items-center gap-2"><i className="fa-solid fa-box text-primary"></i> Ringkasan Pesanan Bulan Ini</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatCard label="Total Pesanan" value={salesData?.total_orders || 0} icon="🛒" bg="bg-white" color="text-foreground" />
+              <StatCard label="Pesanan Selesai" value={salesData?.completed_orders || 0} icon="✅" bg="bg-green-50" color="text-success" />
+              <StatCard label="Pesanan Dibatalkan" value={salesData?.canceled_orders || 0} icon="❌" bg="bg-red-50" color="text-danger" />
+              <StatCard label="Pesanan Anggota" value={salesData?.member_orders || 0} icon="👥" bg="bg-blue-50" color="text-blue-600" />
+            </div>
+          </section>
+        </>
+      )}
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -183,7 +214,7 @@ export default function AdminOverviewPage() {
             </div>
           )}
           {lowStockProducts.length > 0 && (
-            <p className="text-xs text-gray-400 mt-2">* Produk dengan stok ≤ {LOW_STOCK_THRESHOLD}</p>
+            <p className="text-xs text-gray-400 mt-2">* Produk dengan stok di bawah atau sama dengan batas minimum</p>
           )}
         </div>
       </div>

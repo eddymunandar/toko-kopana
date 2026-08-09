@@ -77,7 +77,7 @@ export default function Home() {
               key={idx} 
               className={`absolute inset-0 flex items-center justify-center transition-opacity duration-1000 ${idx === currentBanner ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
             >
-              <img src={banner.image_url} alt="Banner" className="w-full h-full object-contain" />
+              <img src={banner.image_url} alt="Banner" className="w-full h-full object-cover object-center" />
             </div>
           ))}
           {banners.length > 1 && (
