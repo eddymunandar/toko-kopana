@@ -525,12 +525,31 @@ export async function submitPaymentProof(orderId: string, base64Image: string): 
 }
 
 export async function registerCustomer(payload: any) {
-  const { error } = await supabase.from('pelanggan').insert({
+  const { data, error } = await supabase.from('pelanggan').insert({
     phone: payload.phone,
     name: payload.name,
-    password: payload.password
-  });
-  return error ? { success: false, message: error.message } : { success: true };
+    password: payload.password,
+    account_id: `ACC-${Date.now()}`,
+    address: payload.address,
+    district: payload.district,
+    village: payload.village,
+    city: payload.city
+  }).select().single();
+  
+  if (error) return { success: false, message: error.message };
+  
+  // Also fetch member data if applicable to determine role
+  let role = 'customer';
+  let member_no = null;
+  if (payload.phone) {
+    const { data: member } = await supabase.from('member').select('member_no').eq('phone', payload.phone).single();
+    if (member) {
+      role = 'member';
+      member_no = member.member_no;
+    }
+  }
+  
+  return { success: true, data: { ...data, role, member_no } };
 }
 
 export async function loginCustomer(payload: any) {
