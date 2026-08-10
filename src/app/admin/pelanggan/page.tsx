@@ -130,7 +130,7 @@ export default function AdminPelangganPage() {
                   const isMember = item.role?.toLowerCase() === 'member';
                   return (
                     <tr key={i} className="hover:bg-surface-hover/50 transition-colors">
-                      <td className="px-6 py-4 font-mono text-sm text-gray-500">{item.account_id}</td>
+                      <td className="px-6 py-4 font-mono text-sm text-gray-500">{item.account_id || `ACC-${item.phone}`}</td>
                       <td className="px-6 py-4">
                         <div className="font-bold text-foreground">{item.name}</div>
                         <div className="text-sm font-mono text-primary flex items-center gap-1 mt-1">

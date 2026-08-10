@@ -525,15 +525,16 @@ export async function submitPaymentProof(orderId: string, base64Image: string): 
 }
 
 export async function registerCustomer(payload: any) {
+  // Combine address fields into a single string if provided
+  const fullAddress = [payload.address, payload.village, payload.district, payload.city]
+    .filter(Boolean)
+    .join(', ');
+
   const { data, error } = await supabase.from('pelanggan').insert({
     phone: payload.phone,
     name: payload.name,
     password: payload.password,
-    account_id: `ACC-${Date.now()}`,
-    address: payload.address,
-    district: payload.district,
-    village: payload.village,
-    city: payload.city
+    address: fullAddress
   }).select().single();
   
   if (error) return { success: false, message: error.message };
