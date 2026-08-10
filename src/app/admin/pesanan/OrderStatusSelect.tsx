@@ -5,10 +5,12 @@ import { updateOrderStatus } from "@/lib/api";
 
 export default function OrderStatusSelect({ 
   orderId, 
-  initialStatus 
+  initialStatus,
+  onStatusChange
 }: { 
   orderId: string; 
   initialStatus: string;
+  onStatusChange?: () => void;
 }) {
   const [status, setStatus] = useState(initialStatus);
   const [loading, setLoading] = useState(false);
@@ -25,6 +27,9 @@ export default function OrderStatusSelect({
       const res = await updateOrderStatus(orderId, newStatus);
       if (!res.success) {
         throw new Error(res.message);
+      }
+      if (onStatusChange) {
+        onStatusChange();
       }
     } catch (err: any) {
       setError(err.message || "Gagal update status");

@@ -19,6 +19,7 @@ export default function DeliveryManagerClient() {
     setLoading(true);
     try {
       const data = await getDeliveryRoutesAdmin();
+      console.log('Fetched Routes:', data); // Debugging cache issue
       setRoutes(data);
     } catch (e) {
       toast.error('Gagal memuat rute');
@@ -99,7 +100,7 @@ export default function DeliveryManagerClient() {
 
   // Group shipping by Courier Name
   const groupedShipping = routes.shipping.reduce((acc: any, order: any) => {
-    const c = order.courier_name || 'Kurir Tidak Diketahui';
+    const c = order.courier || 'Kurir Tidak Diketahui';
     if (!acc[c]) acc[c] = [];
     acc[c].push(order);
     return acc;

@@ -81,11 +81,11 @@ export default function KeranjangPage() {
   useEffect(() => {
     if (authCustomer?.role === "member" && authCustomer.member_no) {
       fetchContacts(authCustomer.member_no);
-      // Auto-populate memberInfo so they don't get blocked and don't need to click Cek
       setMemberInfo({
         name: authCustomer.name,
         status: "Aktif",
-        branch: authCustomer.branch || "Pusat"
+        branch: authCustomer.branch || "Pusat",
+        member_no: authCustomer.member_no
       });
     }
   }, [authCustomer]);
@@ -208,7 +208,7 @@ export default function KeranjangPage() {
         city: customer.city,
         notes: customer.notes,
         is_member: customer.isMember,
-        member_no: memberInfo ? memberInfo.member_no : customer.memberNo,
+        member_no: customer.memberNo || (memberInfo ? memberInfo.member_no : null),
         influencer_no: customer.influencerNo,
         is_dropship: isDropship,
         payment_method: customer.paymentMethod,
@@ -460,7 +460,7 @@ export default function KeranjangPage() {
                       <option value="">-- Pilih Alamat Tersimpan --</option>
                       {referralContacts.map(c => (
                         <option key={c.contact_id} value={c.contact_id}>
-                          {c.name} ({c.whatsapp}) - {c.address.substring(0, 30)}...
+                          {c.name} ({c.whatsapp}) - {c.address?.substring(0, 30)}...
                         </option>
                       ))}
                       <option value="NEW">+ Tambah Alamat Baru</option>
@@ -481,16 +481,22 @@ export default function KeranjangPage() {
                     <label className="block text-sm font-medium mb-1">Alamat Lengkap *</label>
                     <textarea value={customer.address} onChange={e => setCustomer({...customer, address: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary h-20" placeholder="Jl. Raya Pamotan..."></textarea>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Kecamatan</label>
-                      <input type="text" value={customer.district} onChange={e => setCustomer({...customer, district: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="Opsional" />
+                  {(!authCustomer || (isDropship && selectedContactId === 'NEW')) && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Kecamatan</label>
+                        <input type="text" value={customer.district} onChange={e => setCustomer({...customer, district: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="Kecamatan" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Desa</label>
+                        <input type="text" value={customer.village} onChange={e => setCustomer({...customer, village: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="Desa" />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium mb-1">Kota/Kab.</label>
+                        <input type="text" value={customer.city} onChange={e => setCustomer({...customer, city: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="Kota/Kab." />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Desa</label>
-                      <input type="text" value={customer.village} onChange={e => setCustomer({...customer, village: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="Opsional" />
-                    </div>
-                  </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium mb-1">Catatan</label>
                     <input type="text" value={customer.notes} onChange={e => setCustomer({...customer, notes: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="Catatan opsional..." />

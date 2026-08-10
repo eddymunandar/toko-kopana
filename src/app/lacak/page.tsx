@@ -17,13 +17,19 @@ export default function LacakPage() {
     e.preventDefault();
     if (!orderId) return;
     
+    let formattedOrderId = orderId.trim().toUpperCase();
+    if (/^\d+$/.test(formattedOrderId)) {
+      formattedOrderId = `ORD-${formattedOrderId.padStart(5, '0')}`;
+      setOrderId(formattedOrderId);
+    }
+    
     setLoading(true);
     setError('');
     setOrder(null);
     setUploadSuccess(false);
     
     try {
-      const res = await trackOrder(orderId);
+      const res = await trackOrder(formattedOrderId);
       if (res.success && res.data) {
         setOrder(res.data);
       } else {
@@ -87,8 +93,8 @@ export default function LacakPage() {
         <form onSubmit={handleTrack} className="flex flex-col md:flex-row gap-4">
           <input 
             type="text" 
-            placeholder="Masukkan Nomor Pesanan (Misal: TKN-20231015-000001)" 
-            className="flex-1 px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder="Masukkan No Pesanan (Misal: 5 atau ORD-00005)" 
+            className="flex-1 px-4 py-3 rounded-xl border border-border focus:outline-none focus:ring-2 focus:ring-primary uppercase"
             value={orderId}
             onChange={(e) => setOrderId(e.target.value)}
             required
@@ -120,7 +126,7 @@ export default function LacakPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
               <div>
                 <p className="text-sm text-foreground/60 mb-1">Tanggal Pesanan</p>
-                <p className="font-medium">{new Date(order.date).toLocaleString('id-ID')}</p>
+                <p className="font-medium">{new Date(order.created_at).toLocaleString('id-ID')}</p>
               </div>
               <div>
                 <p className="text-sm text-foreground/60 mb-1">Metode Pembayaran</p>
@@ -132,14 +138,14 @@ export default function LacakPage() {
               </div>
               <div>
                 <p className="text-sm text-foreground/60 mb-1">Total Pembayaran</p>
-                <p className="font-bold text-primary text-lg">Rp {Number(order.grand_total).toLocaleString('id-ID')}</p>
+                <p className="font-bold text-primary text-lg">Rp {Number(order.total_amount).toLocaleString('id-ID')}</p>
               </div>
             </div>
 
             <div className="mb-6">
               <p className="text-sm text-foreground/60 mb-2">Alamat Pengiriman</p>
               <p className="font-medium bg-gray-50 p-4 rounded-xl border border-gray-100">
-                {order.address} {order.village ? `, Ds. ${order.village}` : ''} {order.district ? `, Kec. ${order.district}` : ''}
+                {order.shipping_address || '-'}
               </p>
             </div>
             

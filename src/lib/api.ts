@@ -72,22 +72,65 @@ export async function checkout(payload: any) {
       });
     }
 
+    // Fetch latest order ID to generate a sequential number (ORD-00001)
+    let newOrderId = 'ORD-00001';
+    const { data: latestOrder } = await supabase
+      .from('pesanan')
+      .select('order_id')
+      .order('created_at', { ascending: false })
+      .limit(1);
+      
+    if (latestOrder && latestOrder.length > 0 && latestOrder[0].order_id) {
+      const lastId = latestOrder[0].order_id;
+      const parts = lastId.split('-');
+      if (parts.length > 1) {
+        // Find the last numeric part in case of different formats
+        const numStr = parts[parts.length - 1];
+        const numPart = parseInt(numStr, 10);
+        if (!isNaN(numPart)) {
+          newOrderId = `ORD-${String(numPart + 1).padStart(5, '0')}`;
+        }
+      }
+    }
+
+    const finalOrderId = payload.orderId || newOrderId;
+    
+    // Gabungkan alamat lengkap, desa, kecamatan, kota
+    const addressParts = [
+      payload.address || payload.customer?.address || payload.shipping_address,
+      payload.village || payload.customer?.village,
+      payload.district || payload.customer?.district,
+      payload.city || payload.customer?.city
+    ].filter(Boolean);
+    const fullAddress = addressParts.join(', ');
+
     const { error } = await supabase.from('pesanan').insert({
-      order_id: payload.orderId || `ORD-${Date.now()}`,
+      order_id: finalOrderId,
       customer_phone: phone,
-      customer_name: payload.name || payload.customer_name,
-      items: payload.items || [],
-      total_amount: payload.total || payload.total_amount,
-      shipping_address: payload.address || payload.shipping_address,
-      shipping_cost: payload.shippingCost || 0,
+      customer_name: payload.customer_name || payload.customer?.name,
+      items: payload.items || payload.cart || [],
+      total_amount: payload.total || payload.total_amount || payload.summary?.grand_total || 0,
+      shipping_address: fullAddress,
+      shipping_cost: payload.shippingCost || payload.summary?.shipping_fee || 0,
       courier: payload.courier,
-      referral_code: payload.referral_code,
-      dropship_name: payload.dropship_name,
-      dropship_phone: payload.dropship_phone
+      referral_code: payload.referral_code || payload.influencer_no || payload.member_no || null,
+      dropship_name: payload.is_dropship ? (payload.customer_name || payload.customer?.name) : null,
+      dropship_phone: payload.is_dropship ? phone : null
     });
 
     if (error) throw error;
-    return { success: true, message: 'Pesanan berhasil dibuat!' };
+
+    const shippingCost = payload.shippingCost || payload.summary?.shipping_fee || 0;
+    if (shippingCost > 0) {
+      await supabase.from('pengeluaran').insert({
+        id: `EXP-${Date.now()}`,
+        amount: shippingCost,
+        description: `Ongkos Kirim Pesanan ${finalOrderId}`,
+        admin_name: 'Sistem'
+      });
+    }
+
+    return { success: true, message: 'Pesanan berhasil dibuat!', order_id: finalOrderId };
   } catch (err: any) {
     console.error("Checkout error:", err);
     return { success: false, message: err.message || 'Gagal membuat pesanan' };
@@ -419,16 +462,54 @@ export async function getMemberYearlyReport(year: string | number): Promise<any>
   });
   
   orderList.forEach(o => {
-    const phone = o.customer_phone;
-    const nameStr = (o.customer_name || '').toLowerCase().trim();
-    const member = memberByPhone[phone] || memberByName[nameStr];
+    let targetMemberNo = null;
+
+    if (o.referral_code && memberStats[o.referral_code]) {
+      // If order has a referral code, ALL spending goes to the referral member
+      targetMemberNo = o.referral_code;
+    } else {
+      // Otherwise, find the member by phone or name
+      const phone = o.customer_phone;
+      const nameStr = (o.customer_name || '').toLowerCase().trim();
+      
+      // Exact match
+      let member = memberByPhone[phone] || memberByName[nameStr];
+      
+      // Word-level fuzzy match if not found
+      if (!member && nameStr) {
+        const matches = memberList.filter(m => {
+          const mName = (m.name || '').toLowerCase().trim();
+          const mParts = mName.split(/\s+/);
+          const nameParts = nameStr.split(/\s+/);
+          return mParts.some(p => nameParts.includes(p));
+        });
+        
+        if (matches.length > 0) {
+          // Sort matches to find the best one:
+          // 1. Starts with nameStr wins.
+          // 2. Shorter name wins (less extra words).
+          matches.sort((a, b) => {
+            const aName = (a.name || '').toLowerCase().trim();
+            const bName = (b.name || '').toLowerCase().trim();
+            const aStarts = aName.startsWith(nameStr) ? 1 : 0;
+            const bStarts = bName.startsWith(nameStr) ? 1 : 0;
+            if (aStarts !== bStarts) return bStarts - aStarts;
+            return aName.length - bName.length;
+          });
+          member = matches[0];
+        }
+      }
+      if (member) {
+        targetMemberNo = member.member_no;
+      }
+    }
     
-    if (member && memberStats[member.member_no]) {
-      memberStats[member.member_no].total_orders += 1;
-      memberStats[member.member_no].total_spent += Number(o.total_amount || 0);
+    if (targetMemberNo && memberStats[targetMemberNo]) {
+      memberStats[targetMemberNo].total_orders += 1;
+      memberStats[targetMemberNo].total_spent += Number(o.total_amount || 0);
       
       const monthStr = new Date(o.created_at).toLocaleString('id-ID', { month: 'short' });
-      memberStats[member.member_no].months[monthStr] = (memberStats[member.member_no].months[monthStr] || 0) + Number(o.total_amount || 0);
+      memberStats[targetMemberNo].months[monthStr] = (memberStats[targetMemberNo].months[monthStr] || 0) + Number(o.total_amount || 0);
     }
   });
 
@@ -616,13 +697,23 @@ export async function updateCustomerProfile(payload: any) {
 }
 
 export async function getReferralContacts(memberNo: string): Promise<any[]> {
-  const { data } = await supabase.from('pesanan').select('dropship_name, dropship_phone').eq('referral_code', memberNo);
+  const { data } = await supabase
+    .from('pesanan')
+    .select('dropship_name, dropship_phone, shipping_address')
+    .eq('referral_code', memberNo)
+    .not('dropship_phone', 'is', null);
+    
   if (!data) return [];
   
   const contacts = new Map();
   data.forEach(d => {
     if (d.dropship_phone && d.dropship_name) {
-      contacts.set(d.dropship_phone, { phone: d.dropship_phone, name: d.dropship_name });
+      contacts.set(d.dropship_phone, { 
+        contact_id: d.dropship_phone,
+        whatsapp: d.dropship_phone,
+        name: d.dropship_name,
+        address: d.shipping_address || ""
+      });
     }
   });
   return Array.from(contacts.values());

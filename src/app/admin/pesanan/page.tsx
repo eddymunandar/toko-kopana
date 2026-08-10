@@ -211,7 +211,7 @@ export default function AdminOrdersPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
-                        <OrderStatusSelect orderId={order.order_id} initialStatus={order.order_status || 'PENDING'} />
+                        <OrderStatusSelect orderId={order.order_id} initialStatus={order.order_status || 'PENDING'} onStatusChange={loadOrders} />
                         <PrintStruk order={order} />
                       </div>
                     </td>
