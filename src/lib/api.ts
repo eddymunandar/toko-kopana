@@ -104,7 +104,7 @@ export async function getOrders(): Promise<any[]> {
       .select(`*`)
       .order('created_at', { ascending: false });
     if (error || !data) return [];
-    return data;
+    return data.map(mapOrderData);
   } catch (err) {
     console.error("Error fetching orders:", err);
     return [];
@@ -122,7 +122,7 @@ export async function getCustomerOrders(phone: string): Promise<any[]> {
       .eq('customer_phone', phone)
       .order('created_at', { ascending: false });
     if (error || !data) return [];
-    return data;
+    return data.map(mapOrderData);
   } catch (err) {
     console.error("Error fetching customer orders:", err);
     return [];
@@ -145,16 +145,17 @@ export async function updateOrderStatus(orderId: string, newStatus: string, admi
  */
 export async function getDashboardData(): Promise<any> {
   try {
-    const { data: orders } = await supabase.from('pesanan').select('total_amount, status, created_at');
+    const { data: orders } = await supabase.from('pesanan').select('total_amount, status, created_at, customer_phone, order_id, customer_name, shipping_address, shipping_cost, items, payment_proof, dropship_name, dropship_phone, referral_code');
     const totalSales = orders?.filter(o => o.status !== 'Batal').reduce((sum, o) => sum + Number(o.total_amount), 0) || 0;
     
     // Sort orders manually since we didn't order in the query above
     const sortedOrders = (orders || []).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const recentOrders = sortedOrders.slice(0, 5).map(mapOrderData);
     
     return { 
       totalSales, 
       totalOrders: orders?.length || 0, 
-      recentOrders: sortedOrders.slice(0, 5) 
+      recentOrders
     };
   } catch (err) {
     return { totalSales: 0, totalOrders: 0, recentOrders: [] };
@@ -191,6 +192,25 @@ export async function getDeliveryRoutesAdmin(): Promise<any> {
 export async function bulkAssignCourier(orderIds: string[], courierName: string, adminName: string = 'Admin'): Promise<any> {
   const { error } = await supabase.from('pesanan').update({ courier: courierName, status: 'Dalam Pengiriman' }).in('order_id', orderIds);
   return error ? { success: false } : { success: true };
+}
+
+export async function updateOrder(orderId: string, status: string): Promise<any> {
+  const { error } = await supabase.from('pesanan').update({ status }).eq('order_id', orderId);
+  return error ? { success: false } : { success: true };
+}
+
+// Helper function to map Supabase order fields to the expected frontend fields
+function mapOrderData(o: any) {
+  return {
+    ...o,
+    date: o.created_at,
+    order_status: o.status,
+    whatsapp: o.customer_phone,
+    grand_total: o.total_amount,
+    subtotal: o.total_amount, // or calculate it minus shipping
+    shipping_fee: o.shipping_cost || 0,
+    address: o.shipping_address,
+  };
 }
 
 export async function bulkCompleteDelivery(orderIds: string[], adminName: string = 'Admin'): Promise<any> {
@@ -336,7 +356,7 @@ export async function getSalesReport(startDate: string, endDate: string): Promis
     total_cogs: 0,
     total_expenses: totalExpenses,
     net_profit: netProfit,
-    orders: orderList,
+    orders: orderList.map(mapOrderData),
     top_products: topProducts,
     shopper_list: shopperList
   };
