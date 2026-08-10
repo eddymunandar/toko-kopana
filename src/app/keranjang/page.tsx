@@ -408,24 +408,26 @@ export default function KeranjangPage() {
               <div className="pt-2 border-t border-border">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 gap-2">
                   <h3 className="font-bold">Data Penerima</h3>
-                  <label className="flex items-center gap-2 cursor-pointer text-sm bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200 w-fit">
-                    <input 
-                      type="checkbox" 
-                      checked={isDropship} 
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setIsDropship(checked);
-                        if (checked) {
-                          const refNo = authCustomer?.member_no || customer.influencerNo;
-                          if (refNo) fetchContacts(refNo);
-                        } else if (authCustomer) {
-                          setCustomer(prev => ({ ...prev, name: authCustomer.name }));
-                        }
-                      }} 
-                      className="rounded text-primary focus:ring-primary"
-                    />
-                    <span className="font-medium text-gray-700">Kirim ke orang lain (Dropship/Hadiah)</span>
-                  </label>
+                  {authCustomer?.role === "member" && (
+                    <label className="flex items-center gap-2 cursor-pointer text-sm bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200 w-fit">
+                      <input 
+                        type="checkbox" 
+                        checked={isDropship} 
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setIsDropship(checked);
+                          if (checked) {
+                            const refNo = customer.isMember ? customer.memberNo : customer.influencerNo;
+                            if (refNo) fetchContacts(refNo);
+                          } else if (authCustomer) {
+                            setCustomer(prev => ({ ...prev, name: authCustomer.name }));
+                          }
+                        }} 
+                        className="rounded text-primary focus:ring-primary"
+                      />
+                      <span className="font-medium text-gray-700">Pesan untuk orang lain (Dropship)</span>
+                    </label>
+                  )}
                 </div>
                 
                 {isDropship && (
