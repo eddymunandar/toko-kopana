@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { getAllCustomers, deleteCustomer } from "@/lib/api";
+import { getAllCustomers, deleteCustomer, updateCustomerPassword } from "@/lib/api";
 
 export default function AdminPelangganPage() {
   const [data, setData] = useState<any[]>([]);
@@ -29,6 +29,27 @@ export default function AdminPelangganPage() {
         loadData();
       } else {
         alert("Gagal menghapus: " + res.message);
+      }
+    } catch (err) {
+      alert("Terjadi kesalahan.");
+    }
+  }
+
+  async function handleResetPassword(phone: string, name: string) {
+    const newPassword = prompt(`Masukkan kata sandi baru untuk pelanggan ${name} (${phone}):`);
+    if (!newPassword) return; // cancelled or empty
+    
+    if (newPassword.length < 6) {
+      alert("Kata sandi harus minimal 6 karakter.");
+      return;
+    }
+
+    try {
+      const res = await updateCustomerPassword(phone, newPassword);
+      if (res.success) {
+        alert("Kata sandi berhasil direset!");
+      } else {
+        alert("Gagal mereset kata sandi: " + res.message);
       }
     } catch (err) {
       alert("Terjadi kesalahan.");
@@ -134,12 +155,20 @@ export default function AdminPelangganPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => handleDelete(item.phone)}
-                          className="bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
-                        >
-                          Hapus
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleResetPassword(item.phone, item.name)}
+                            className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            Reset Sandi
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item.phone)}
+                            className="bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            Hapus
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
