@@ -279,8 +279,18 @@ export async function getAllMembers(): Promise<any[]> {
 }
 
 export async function getAllCustomers(): Promise<any[]> {
-  const { data } = await supabase.from('pelanggan').select('*');
-  return data || [];
+  const { data: pelanggan } = await supabase.from('pelanggan').select('*');
+  if (!pelanggan) return [];
+  
+  // Get all members to attach member_no
+  const { data: members } = await supabase.from('member').select('phone, member_no');
+  const memberMap = new Map((members || []).map(m => [m.phone, m.member_no]));
+
+  return pelanggan.map(p => ({
+    ...p,
+    role: memberMap.has(p.phone) ? 'member' : (p.role || 'customer'),
+    member_no: memberMap.get(p.phone) || null
+  }));
 }
 
 export async function saveMember(memberData: any): Promise<any> {
@@ -530,16 +540,7 @@ export async function registerCustomer(payload: any) {
     .filter(Boolean)
     .join(', ');
 
-  const { data, error } = await supabase.from('pelanggan').insert({
-    phone: payload.phone,
-    name: payload.name,
-    password: payload.password,
-    address: fullAddress
-  }).select().single();
-  
-  if (error) return { success: false, message: error.message };
-  
-  // Also fetch member data if applicable to determine role
+  // Fetch member data if applicable to determine role
   let role = 'customer';
   let member_no = null;
   if (payload.phone) {
@@ -549,6 +550,16 @@ export async function registerCustomer(payload: any) {
       member_no = member.member_no;
     }
   }
+
+  const { data, error } = await supabase.from('pelanggan').insert({
+    phone: payload.phone,
+    name: payload.name,
+    password: payload.password,
+    address: fullAddress,
+    role: role
+  }).select().single();
+  
+  if (error) return { success: false, message: error.message };
   
   return { success: true, data: { ...data, role, member_no } };
 }
