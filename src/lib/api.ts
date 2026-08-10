@@ -337,24 +337,39 @@ export async function getSalesReport(startDate: string, endDate: string): Promis
   completedOrders.forEach(o => {
     const items = typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []);
     items.forEach((item: any) => {
-      const pName = item.name;
+      const pName = item.name || item.product_name || 'Unknown Product';
+      if (!pName.trim()) return; // Skip empty
+      const qty = Number(item.qty || item.quantity || 1);
+      const price = Number(item.price || 0);
+      
       if (!productCounts[pName]) productCounts[pName] = { name: pName, qty: 0, revenue: 0 };
-      productCounts[pName].qty += Number(item.quantity || 1);
-      productCounts[pName].revenue += Number(item.price || 0) * Number(item.quantity || 1);
+      productCounts[pName].qty += qty;
+      productCounts[pName].revenue += price * qty;
     });
   });
   
   const topProducts = Object.values(productCounts).sort((a, b) => b.qty - a.qty).slice(0, 10);
 
   // Shopper list
-  const shoppers: Record<string, {name: string, phone: string, total_orders: number, total_spent: number}> = {};
+  const shoppers: Record<string, {name: string, whatsapp: string, total_orders: number, total_spend: number, member_no: string | null}> = {};
+  
+  // Get all members to attach member_no
+  const { data: members } = await supabase.from('member').select('phone, member_no');
+  const memberMap = new Map((members || []).map((m: any) => [m.phone, m.member_no]));
+
   completedOrders.forEach(o => {
     const phone = o.customer_phone;
-    if (!shoppers[phone]) shoppers[phone] = { name: o.customer_name, phone, total_orders: 0, total_spent: 0 };
+    if (!shoppers[phone]) shoppers[phone] = { 
+      name: o.customer_name, 
+      whatsapp: phone, 
+      total_orders: 0, 
+      total_spend: 0,
+      member_no: memberMap.get(phone) || null
+    };
     shoppers[phone].total_orders += 1;
-    shoppers[phone].total_spent += Number(o.total_amount || 0);
+    shoppers[phone].total_spend += Number(o.total_amount || 0);
   });
-  const shopperList = Object.values(shoppers).sort((a, b) => b.total_spent - a.total_spent);
+  const shopperList = Object.values(shoppers).sort((a, b) => b.total_spend - a.total_spend);
 
   return {
     period: { start: startDate, end: endDate },
