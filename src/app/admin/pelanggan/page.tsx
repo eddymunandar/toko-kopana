@@ -24,6 +24,9 @@ export default function AdminPelangganPage() {
   }, []);
 
   const filteredData = data.filter(item => {
+    // Hide dummy members that were auto-imported
+    if (item.phone && String(item.phone).startsWith('DUMMY')) return false;
+
     if (filterRole === 'Semua') return true;
     if (filterRole === 'Member') return item.role?.toLowerCase() === 'member';
     if (filterRole === 'Umum') return item.role?.toLowerCase() === 'umum';
