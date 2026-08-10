@@ -354,28 +354,31 @@ export async function getMemberYearlyReport(year: string | number): Promise<any>
   const orderList = orders || [];
   const memberList = members || [];
   
-  // Create a map of members by phone number
+  // Create a map of members by phone number and name
   const memberByPhone: Record<string, any> = {};
+  const memberByName: Record<string, any> = {};
+  const memberStats: Record<string, any> = {};
+
   memberList.forEach(m => {
     if (m.phone) memberByPhone[m.phone] = m;
+    if (m.name) memberByName[m.name.toLowerCase().trim()] = m;
+    
+    // Initialize stats for ALL members
+    memberStats[m.member_no] = {
+      member_no: m.member_no,
+      name: m.name,
+      total_orders: 0,
+      total_spent: 0,
+      months: {}
+    };
   });
-  
-  const memberStats: Record<string, { member_no: string, name: string, total_orders: number, total_spent: number, months: Record<string, number> }> = {};
   
   orderList.forEach(o => {
     const phone = o.customer_phone;
-    const member = memberByPhone[phone];
-    if (member) {
-      if (!memberStats[member.member_no]) {
-        memberStats[member.member_no] = {
-          member_no: member.member_no,
-          name: member.name,
-          total_orders: 0,
-          total_spent: 0,
-          months: {}
-        };
-      }
-      
+    const nameStr = (o.customer_name || '').toLowerCase().trim();
+    const member = memberByPhone[phone] || memberByName[nameStr];
+    
+    if (member && memberStats[member.member_no]) {
       memberStats[member.member_no].total_orders += 1;
       memberStats[member.member_no].total_spent += Number(o.total_amount || 0);
       
