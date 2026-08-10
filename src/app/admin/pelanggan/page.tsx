@@ -26,6 +26,11 @@ export default function AdminPelangganPage() {
   const filteredData = data.filter(item => {
     // Hide dummy members that were auto-imported
     if (item.phone && String(item.phone).startsWith('DUMMY')) return false;
+    
+    // Filter obvious test numbers or too short
+    const phone = String(item.phone || "");
+    const isObviousTest = /^(000+|888+|999+|333+|4343+|123584|125934569|254|811|877)$/.test(phone);
+    if (isObviousTest || phone.length < 9) return false;
 
     if (filterRole === 'Semua') return true;
     if (filterRole === 'Member') return item.role?.toLowerCase() === 'member';
