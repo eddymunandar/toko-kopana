@@ -278,12 +278,116 @@ export async function deleteMember(memberNo: string): Promise<any> {
 }
 
 export async function getSalesReport(startDate: string, endDate: string): Promise<any> {
-  // Simplified for now
-  return [];
+  // Query orders within the date range
+  const { data: orders } = await supabase
+    .from('pesanan')
+    .select('*')
+    .gte('created_at', `${startDate}T00:00:00.000Z`)
+    .lte('created_at', `${endDate}T23:59:59.999Z`);
+    
+  // Query expenses within the date range
+  const { data: expenses } = await supabase
+    .from('pengeluaran')
+    .select('*')
+    .gte('created_at', `${startDate}T00:00:00.000Z`)
+    .lte('created_at', `${endDate}T23:59:59.999Z`);
+
+  const orderList = orders || [];
+  const expenseList = expenses || [];
+  
+  const completedOrders = orderList.filter(o => o.status === 'Selesai');
+  const canceledOrders = orderList.filter(o => o.status === 'Batal');
+  
+  const totalRevenue = completedOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+  const totalExpenses = expenseList.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  const netProfit = totalRevenue - totalExpenses; // Ignoring COGS for now as it needs product lookup
+
+  // Calculate top products
+  const productCounts: Record<string, {name: string, qty: number, revenue: number}> = {};
+  completedOrders.forEach(o => {
+    const items = typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []);
+    items.forEach((item: any) => {
+      const pName = item.name;
+      if (!productCounts[pName]) productCounts[pName] = { name: pName, qty: 0, revenue: 0 };
+      productCounts[pName].qty += Number(item.quantity || 1);
+      productCounts[pName].revenue += Number(item.price || 0) * Number(item.quantity || 1);
+    });
+  });
+  
+  const topProducts = Object.values(productCounts).sort((a, b) => b.qty - a.qty).slice(0, 10);
+
+  // Shopper list
+  const shoppers: Record<string, {name: string, phone: string, total_orders: number, total_spent: number}> = {};
+  completedOrders.forEach(o => {
+    const phone = o.customer_phone;
+    if (!shoppers[phone]) shoppers[phone] = { name: o.customer_name, phone, total_orders: 0, total_spent: 0 };
+    shoppers[phone].total_orders += 1;
+    shoppers[phone].total_spent += Number(o.total_amount || 0);
+  });
+  const shopperList = Object.values(shoppers).sort((a, b) => b.total_spent - a.total_spent);
+
+  return {
+    period: { start: startDate, end: endDate },
+    total_orders: orderList.length,
+    completed_orders: completedOrders.length,
+    canceled_orders: canceledOrders.length,
+    member_orders: 0,
+    total_revenue: totalRevenue,
+    total_cogs: 0,
+    total_expenses: totalExpenses,
+    net_profit: netProfit,
+    orders: orderList,
+    top_products: topProducts,
+    shopper_list: shopperList
+  };
 }
 
 export async function getMemberYearlyReport(year: string | number): Promise<any> {
-  return [];
+  const { data: members } = await supabase.from('member').select('*');
+  const { data: orders } = await supabase
+    .from('pesanan')
+    .select('*')
+    .eq('status', 'Selesai')
+    .gte('created_at', `${year}-01-01T00:00:00.000Z`)
+    .lte('created_at', `${year}-12-31T23:59:59.999Z`);
+    
+  const orderList = orders || [];
+  const memberList = members || [];
+  
+  // Create a map of members by phone number
+  const memberByPhone: Record<string, any> = {};
+  memberList.forEach(m => {
+    if (m.phone) memberByPhone[m.phone] = m;
+  });
+  
+  const memberStats: Record<string, { member_no: string, name: string, total_orders: number, total_spent: number, months: Record<string, number> }> = {};
+  
+  orderList.forEach(o => {
+    const phone = o.customer_phone;
+    const member = memberByPhone[phone];
+    if (member) {
+      if (!memberStats[member.member_no]) {
+        memberStats[member.member_no] = {
+          member_no: member.member_no,
+          name: member.name,
+          total_orders: 0,
+          total_spent: 0,
+          months: {}
+        };
+      }
+      
+      memberStats[member.member_no].total_orders += 1;
+      memberStats[member.member_no].total_spent += Number(o.total_amount || 0);
+      
+      const monthStr = new Date(o.created_at).toLocaleString('id-ID', { month: 'short' });
+      memberStats[member.member_no].months[monthStr] = (memberStats[member.member_no].months[monthStr] || 0) + Number(o.total_amount || 0);
+    }
+  });
+
+  return {
+    year,
+    members: Object.values(memberStats).sort((a, b) => b.total_spent - a.total_spent)
+  };
 }
 
 export async function saveCategoryAdmin(categoryData: any): Promise<any> {
