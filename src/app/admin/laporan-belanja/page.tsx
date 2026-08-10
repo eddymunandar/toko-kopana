@@ -25,6 +25,11 @@ export default function LaporanBelanjaPage() {
 
   // Build monthly totals per member if data has monthly_breakdown
   function getMonthly(item: any, monthIdx: number): number | null {
+    if (item.months && typeof item.months === 'object') {
+      const mName = MONTHS[monthIdx];
+      return item.months[mName] || null;
+    }
+    // Fallbacks for older data formats if needed
     if (item.monthly && Array.isArray(item.monthly)) return item.monthly[monthIdx] || null;
     if (item.monthly_breakdown && Array.isArray(item.monthly_breakdown)) return item.monthly_breakdown[monthIdx] || null;
     return null;

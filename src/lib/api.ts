@@ -384,10 +384,7 @@ export async function getMemberYearlyReport(year: string | number): Promise<any>
     }
   });
 
-  return {
-    year,
-    members: Object.values(memberStats).sort((a, b) => b.total_spent - a.total_spent)
-  };
+  return Object.values(memberStats).sort((a, b) => b.total_spent - a.total_spent);
 }
 
 export async function saveCategoryAdmin(categoryData: any): Promise<any> {
