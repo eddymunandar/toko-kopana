@@ -543,7 +543,16 @@ export async function registerCustomer(payload: any) {
   // Fetch member data if applicable to determine role
   let role = 'customer';
   let member_no = null;
-  if (payload.phone) {
+  
+  if (payload.isMember && payload.memberNo) {
+    const { data: member } = await supabase.from('member').select('member_no').eq('member_no', payload.memberNo).single();
+    if (member) {
+      role = 'member';
+      member_no = member.member_no;
+      // Update the member table with the real phone number (replacing DUMMY)
+      await supabase.from('member').update({ phone: payload.phone }).eq('member_no', member_no);
+    }
+  } else if (payload.phone) {
     const { data: member } = await supabase.from('member').select('member_no').eq('phone', payload.phone).single();
     if (member) {
       role = 'member';
