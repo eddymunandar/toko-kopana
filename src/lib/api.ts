@@ -552,6 +552,11 @@ export async function registerCustomer(payload: any) {
   return { success: true, data: { ...data, role, member_no } };
 }
 
+export async function deleteCustomer(phone: string) {
+  const { error } = await supabase.from('pelanggan').delete().eq('phone', phone);
+  return error ? { success: false, message: error.message } : { success: true };
+}
+
 export async function loginCustomer(payload: any) {
   const { data, error } = await supabase.from('pelanggan').select('*').eq('phone', payload.phone).eq('password', payload.password).single();
   if (error || !data) return { success: false, message: 'No HP atau password salah' };

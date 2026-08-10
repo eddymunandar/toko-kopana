@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { getAllCustomers } from "@/lib/api";
+import { getAllCustomers, deleteCustomer } from "@/lib/api";
 
 export default function AdminPelangganPage() {
   const [data, setData] = useState<any[]>([]);
@@ -16,6 +16,22 @@ export default function AdminPelangganPage() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDelete(phone: string) {
+    if (!confirm(`Yakin ingin menghapus akun dengan No. HP ${phone}?`)) return;
+    
+    try {
+      const res = await deleteCustomer(phone);
+      if (res.success) {
+        alert("Akun berhasil dihapus.");
+        loadData();
+      } else {
+        alert("Gagal menghapus: " + res.message);
+      }
+    } catch (err) {
+      alert("Terjadi kesalahan.");
     }
   }
 
@@ -70,6 +86,7 @@ export default function AdminPelangganPage() {
                 <th className="px-6 py-4">Nama & Kontak</th>
                 <th className="px-6 py-4">Status / Role</th>
                 <th className="px-6 py-4 min-w-[200px]">Alamat Lengkap</th>
+                <th className="px-6 py-4 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -115,6 +132,14 @@ export default function AdminPelangganPage() {
                         <div className="text-xs text-gray-500 mt-1">
                           {[item.village, item.district, item.city].filter(Boolean).join(', ') || 'Belum diisi'}
                         </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => handleDelete(item.phone)}
+                          className="bg-red-50 text-red-600 hover:bg-red-100 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                        >
+                          Hapus
+                        </button>
                       </td>
                     </tr>
                   );
