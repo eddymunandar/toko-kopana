@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCustomerAuth } from "@/components/CustomerAuthProvider";
-import { loginCustomer, registerCustomer, updateCustomerProfile } from "@/lib/api";
+import { loginCustomer, registerCustomer, updateCustomerProfile, verifyMember, getCustomerOrders } from "@/lib/api";
 import Link from "next/link";
 
 export default function AkunPage() {
@@ -10,6 +10,7 @@ export default function AkunPage() {
   
   const [isLogin, setIsLogin] = useState(true);
   const [isMember, setIsMember] = useState(false);
+  const [isMemberVerified, setIsMemberVerified] = useState(false);
   
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -23,6 +24,31 @@ export default function AkunPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  
+  const [activeTab, setActiveTab] = useState<'profil' | 'riwayat'>('profil');
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+
+  useEffect(() => {
+    if (customer && activeTab === 'riwayat') {
+      loadOrders();
+    }
+  }, [customer, activeTab]);
+
+  const loadOrders = async () => {
+    if (!customer?.phone) return;
+    setLoadingOrders(true);
+    try {
+      const data = await getCustomerOrders(customer.phone);
+      // Sort orders descending by order_id or date
+      data.sort((a, b) => b.order_id.localeCompare(a.order_id));
+      setOrders(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +65,35 @@ export default function AkunPage() {
       }
     } catch (err) {
       setError("Terjadi kesalahan sistem.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyMember = async () => {
+    if (!memberNo) {
+      setError("Silakan masukkan Nomor Anggota.");
+      return;
+    }
+    
+    setLoading(true);
+    setError("");
+    setSuccess("");
+    
+    try {
+      const res = await verifyMember(memberNo);
+      if (res.success && res.data) {
+        setName(res.data.name || "");
+        setPhone(res.data.whatsapp || "");
+        setAddress(res.data.address || "");
+        
+        setIsMemberVerified(true);
+        setSuccess(`Halo ${res.data.name}, nomor anggota Anda valid. Silakan lengkapi data berikut.`);
+      } else {
+        setError(res.message || "Nomor Anggota tidak ditemukan.");
+      }
+    } catch (err) {
+      setError("Terjadi kesalahan saat memverifikasi nomor anggota.");
     } finally {
       setLoading(false);
     }
@@ -128,18 +183,35 @@ export default function AkunPage() {
             </button>
           </div>
           
-          <div className="bg-green-50 p-4 rounded-xl border border-green-100 flex items-start space-x-3 mb-6">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-600 shrink-0 mt-0.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-            <div>
-              <h3 className="font-semibold text-green-900">Alamat Pengiriman Utama</h3>
-              <p className="text-sm text-green-800 mt-1">
-                {customer.address ? `${customer.address}, ${customer.village}, ${customer.district}, ${customer.city}` : "Anda belum melengkapi alamat."}
-              </p>
-            </div>
+          <div className="flex border-b border-neutral-100 mb-6 gap-6">
+            <button 
+              onClick={() => setActiveTab('profil')} 
+              className={`pb-3 font-semibold ${activeTab === 'profil' ? 'text-green-600 border-b-2 border-green-600' : 'text-neutral-500 hover:text-neutral-700'}`}
+            >
+              Profil Saya
+            </button>
+            <button 
+              onClick={() => setActiveTab('riwayat')} 
+              className={`pb-3 font-semibold ${activeTab === 'riwayat' ? 'text-green-600 border-b-2 border-green-600' : 'text-neutral-500 hover:text-neutral-700'}`}
+            >
+              Riwayat Pesanan
+            </button>
           </div>
 
-          <form onSubmit={handleUpdateProfile} className="space-y-4">
-            <h3 className="font-bold text-neutral-800 border-b pb-2">Perbarui Alamat</h3>
+          {activeTab === 'profil' ? (
+            <>
+              <div className="bg-green-50 p-4 rounded-xl border border-green-100 flex items-start space-x-3 mb-6">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-600 shrink-0 mt-0.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                <div>
+                  <h3 className="font-semibold text-green-900">Alamat Pengiriman Utama</h3>
+                  <p className="text-sm text-green-800 mt-1">
+                    {customer.address ? `${customer.address}, ${customer.village}, ${customer.district}, ${customer.city}` : "Anda belum melengkapi alamat."}
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleUpdateProfile} className="space-y-4">
+                <h3 className="font-bold text-neutral-800 border-b pb-2">Perbarui Alamat</h3>
             
             {success && <div className="p-3 bg-green-50 text-green-700 rounded-lg text-sm">{success}</div>}
             {error && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>}
@@ -201,6 +273,63 @@ export default function AkunPage() {
               {loading ? <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : "Simpan Perubahan"}
             </button>
           </form>
+          </>
+          ) : (
+            <div className="space-y-4">
+              {loadingOrders ? (
+                <div className="flex justify-center p-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                </div>
+              ) : orders.length === 0 ? (
+                <div className="text-center py-8 text-neutral-500">
+                  <p>Anda belum memiliki riwayat pesanan.</p>
+                </div>
+              ) : (
+                orders.map((o) => (
+                  <div key={o.order_id} className="border border-neutral-100 rounded-xl p-4 shadow-sm">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-semibold text-sm text-neutral-800">{o.order_id}</span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`px-2 py-1 text-[10px] font-bold rounded-full ${
+                          o.order_status === 'Selesai' ? 'bg-green-100 text-green-700' : 
+                          o.order_status === 'Batal' ? 'bg-red-100 text-red-700' : 
+                          'bg-blue-100 text-blue-700'
+                        }`}>
+                          📦 {o.order_status || o.status || 'PENDING'}
+                        </span>
+                        <span className={`px-2 py-1 text-[10px] font-bold rounded-full ${
+                          (o.payment_status === 'PAID' || ['Telah Dibayar', 'Lunas', 'Sedang Diproses', 'Siap Dikirim', 'Dalam Pengiriman', 'Selesai'].includes(o.order_status || o.status)) ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          💳 {(o.payment_status === 'PAID' || ['Telah Dibayar', 'Lunas', 'Sedang Diproses', 'Siap Dikirim', 'Dalam Pengiriman', 'Selesai'].includes(o.order_status || o.status)) ? 'Lunas' : (o.payment_status || 'Belum Lunas')}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-sm text-neutral-600 mb-3">
+                      {new Date(o.timestamp || o.date).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                    </div>
+                    <div className="space-y-1 mb-3">
+                      {(() => {
+                        let items = [];
+                        try {
+                          items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
+                        } catch(e) {}
+                        return (items || []).map((item: any, i: number) => (
+                          <div key={i} className="flex justify-between text-sm">
+                            <span className="text-neutral-700">{item.qty}x {item.name}</span>
+                            <span className="font-medium">Rp {(item.price * item.qty).toLocaleString('id-ID')}</span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                    <div className="flex justify-between items-center pt-3 border-t border-neutral-100 font-bold">
+                      <span>Total Tagihan</span>
+                      <span className="text-green-700">Rp {Number(o.total || 0).toLocaleString('id-ID')}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
         
         <div className="text-center">
@@ -298,26 +427,40 @@ export default function AkunPage() {
                   type="checkbox" 
                   className="w-5 h-5 text-green-600 rounded border-gray-300 focus:ring-green-500"
                   checked={isMember}
-                  onChange={(e) => setIsMember(e.target.checked)}
+                  onChange={(e) => {
+                    setIsMember(e.target.checked);
+                    setIsMemberVerified(false);
+                    setError("");
+                    setSuccess("");
+                  }}
                 />
                 <span className="font-semibold text-neutral-700 text-sm">Saya adalah Anggota Kopana</span>
               </label>
-              {isMember && (
-                <div className="mt-3">
+              
+              {isMember && !isMemberVerified && (
+                <div className="mt-4 flex space-x-2">
                   <input 
                     type="text" 
-                    required={isMember}
-                    className="w-full border border-neutral-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none"
-                    placeholder="Masukkan Nomor Anggota"
+                    className="flex-1 border border-neutral-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                    placeholder="Nomor Anggota"
                     value={memberNo}
                     onChange={(e) => setMemberNo(e.target.value)}
                   />
-                  <p className="text-xs text-neutral-500 mt-1">Sistem akan memverifikasi nama Anda berdasarkan nomor ini.</p>
+                  <button
+                    type="button"
+                    onClick={handleVerifyMember}
+                    disabled={loading || !memberNo}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-70 flex items-center"
+                  >
+                    {loading ? "Cek..." : "Cek Anggota"}
+                  </button>
                 </div>
               )}
             </div>
 
-            {!isMember && (
+            {(!isMember || (isMember && isMemberVerified)) && (
+              <>
+                {!isMember && (
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">Nama Lengkap</label>
                 <div className="relative">
@@ -412,15 +555,17 @@ export default function AkunPage() {
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 px-4 rounded-xl transition-all disabled:opacity-70 flex justify-center items-center shadow-lg shadow-green-600/20 mt-6"
-            >
-              {loading ? <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : "Daftar & Masuk"}
-            </button>
-          </form>
-        )}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 px-4 rounded-xl transition-all disabled:opacity-70 flex justify-center items-center shadow-lg shadow-green-600/20 mt-6"
+                >
+                  {loading ? <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : "Daftar & Masuk"}
+                </button>
+              </>
+            )}
+              </form>
+            )}
       </div>
     </div>
   );

@@ -28,7 +28,7 @@ export default function Header() {
         
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
           <Link href="/" className="transition-colors hover:text-white/70 text-white">Beranda</Link>
-          <Link href="/" className="transition-colors hover:text-white/70 text-white">Katalog</Link>
+          <Link href="/#katalog" className="transition-colors hover:text-white/70 text-white">Katalog</Link>
           <Link href="/lacak" className="transition-colors hover:text-white/70 text-white">Cek Pesanan</Link>
           <Link href="/akun" className="transition-colors hover:text-white/70 text-white">Akun</Link>
           <Link href="/admin" className="transition-colors hover:text-white/70 font-bold text-white">Admin Panel</Link>

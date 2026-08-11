@@ -29,6 +29,7 @@ export default function ProductTableClient({ initialProducts, loading, onEdit }:
         weight: product.weight,
         image: product.image_url || product.image,
         stock: product.stock,
+        min_stock: product.min_stock || 5,
         is_active: newStatus === "ACTIVE"
       });
       
@@ -73,6 +74,7 @@ export default function ProductTableClient({ initialProducts, loading, onEdit }:
             <th className="px-6 py-4">Harga Jual</th>
             <th className="px-6 py-4">Harga Promo</th>
             <th className="px-6 py-4">Stok</th>
+            <th className="px-6 py-4">Min. Stok</th>
             <th className="px-6 py-4">Status</th>
             <th className="px-6 py-4 rounded-tr-xl">Aksi</th>
           </tr>
@@ -80,7 +82,7 @@ export default function ProductTableClient({ initialProducts, loading, onEdit }:
         <tbody className="divide-y divide-border">
           {loading ? (
             <tr>
-              <td colSpan={6} className="px-6 py-12 text-center">
+              <td colSpan={7} className="px-6 py-12 text-center">
                 <div className="flex justify-center items-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
@@ -88,7 +90,7 @@ export default function ProductTableClient({ initialProducts, loading, onEdit }:
             </tr>
           ) : products.length === 0 ? (
             <tr>
-              <td colSpan={6} className="px-6 py-12 text-center text-foreground/50">
+              <td colSpan={7} className="px-6 py-12 text-center text-foreground/50">
                 Belum ada produk.
               </td>
             </tr>
@@ -129,11 +131,14 @@ export default function ProductTableClient({ initialProducts, loading, onEdit }:
                 </td>
                 <td className="px-6 py-4">
                   <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                    product.stock > 10 ? 'bg-success/10 text-success' : 
-                    product.stock > 0 ? 'bg-warning/10 text-warning' : 'bg-danger/10 text-danger'
+                    product.stock > (product.min_stock || 5) * 2 ? 'bg-success/10 text-success' : 
+                    product.stock > (product.min_stock || 5) ? 'bg-warning/10 text-warning' : 'bg-danger/10 text-danger'
                   }`}>
                     {product.stock}
                   </span>
+                </td>
+                <td className="px-6 py-4 text-sm text-foreground/70">
+                  {product.min_stock || 5}
                 </td>
                 <td className="px-6 py-4">
                   <button 

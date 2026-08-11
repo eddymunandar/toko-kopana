@@ -5,7 +5,7 @@ import { useCustomerAuth } from "@/components/CustomerAuthProvider";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { checkout, verifyMember, submitPaymentProof, getStoreSettings } from "@/lib/api";
+import { checkout, verifyMember, submitPaymentProof, getStoreSettings, getReferralContacts } from "@/lib/api";
 
 export default function KeranjangPage() {
   const { cart, removeFromCart, updateQuantity, totalPrice, clearCart } = useCart();
@@ -49,6 +49,10 @@ export default function KeranjangPage() {
     paymentMethod: "Transfer Bank" // Transfer Bank | QRIS | COD
   });
 
+  const [isDropship, setIsDropship] = useState(false);
+  const [referralContacts, setReferralContacts] = useState<any[]>([]);
+  const [selectedContactId, setSelectedContactId] = useState("");
+
   useEffect(() => {
     if (authCustomer) {
       setCustomer(prev => ({
@@ -65,6 +69,27 @@ export default function KeranjangPage() {
     }
   }, [authCustomer]);
 
+  const fetchContacts = async (memNo: string) => {
+    try {
+      const contacts = await getReferralContacts(memNo);
+      setReferralContacts(contacts || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (authCustomer?.role === "member" && authCustomer.member_no) {
+      fetchContacts(authCustomer.member_no);
+      setMemberInfo({
+        name: authCustomer.name,
+        status: "Aktif",
+        branch: authCustomer.branch || "Pusat",
+        member_no: authCustomer.member_no
+      });
+    }
+  }, [authCustomer]);
+
   const [memberInfo, setMemberInfo] = useState<any>(null);
   const [memberError, setMemberError] = useState("");
   const [verifying, setVerifying] = useState(false);
@@ -78,9 +103,10 @@ export default function KeranjangPage() {
       const res = await verifyMember(customer.memberNo);
       if (res.success && res.data) {
         setMemberInfo(res.data);
-        if (res.data.name) {
+        if (res.data.name && !isDropship) {
           setCustomer(prev => ({ ...prev, name: res.data.name }));
         }
+        fetchContacts(customer.memberNo);
       } else {
         setMemberError(res.message || "Member tidak ditemukan");
       }
@@ -127,12 +153,17 @@ export default function KeranjangPage() {
     
     setError("");
 
+    const showError = (msg: string) => {
+      setError(msg);
+      alert(msg);
+    };
+
     // Manual validation
-    if (!customer.name.trim()) return setError("Mohon isi Nama Lengkap");
-    if (!customer.phone.trim()) return setError("Mohon isi No. WhatsApp");
-    if (!customer.address.trim()) return setError("Mohon isi Alamat Lengkap");
-    if (customer.isMember && !customer.memberNo.trim()) return setError("Mohon isi Nomor Anggota");
-    if (customer.isMember && !memberInfo) return setError("Mohon klik tombol Cek untuk verifikasi Nomor Anggota");
+    if (!String(customer.name || '').trim()) return showError("Mohon isi Nama Lengkap");
+    if (!String(customer.phone || '').trim()) return showError("Mohon isi No. WhatsApp");
+    if (!String(customer.address || '').trim()) return showError("Mohon isi Alamat Lengkap");
+    if (customer.isMember && !String(customer.memberNo || '').trim()) return showError("Mohon isi Nomor Anggota");
+    if (customer.isMember && !memberInfo && !authCustomer) return showError("Mohon klik tombol Cek untuk verifikasi Nomor Anggota");
 
     setLoading(true);
     
@@ -177,8 +208,9 @@ export default function KeranjangPage() {
         city: customer.city,
         notes: customer.notes,
         is_member: customer.isMember,
-        member_no: memberInfo ? memberInfo.member_no : customer.memberNo,
+        member_no: customer.memberNo || (memberInfo ? memberInfo.member_no : null),
         influencer_no: customer.influencerNo,
+        is_dropship: isDropship,
         payment_method: customer.paymentMethod,
         promo_code: "",
         promo_discount: 0
@@ -191,11 +223,13 @@ export default function KeranjangPage() {
         setOrderPayment(customer.paymentMethod);
         setSuccess(true);
         clearCart();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        setError(res.message || "Gagal melakukan checkout.");
+        showError(res.message || "Gagal melakukan checkout.");
       }
     } catch (err) {
-      setError("Terjadi kesalahan jaringan.");
+      console.error(err);
+      showError("Terjadi kesalahan. Silakan coba lagi.");
     } finally {
       setLoading(false);
     }
@@ -372,7 +406,68 @@ export default function KeranjangPage() {
 
               {/* Data Penerima */}
               <div className="pt-2 border-t border-border">
-                <h3 className="font-bold mb-3">Data Penerima</h3>
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 gap-2">
+                  <h3 className="font-bold">Data Penerima</h3>
+                  {authCustomer?.role === "member" && (
+                    <label className="flex items-center gap-2 cursor-pointer text-sm bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200 w-fit">
+                      <input 
+                        type="checkbox" 
+                        checked={isDropship} 
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setIsDropship(checked);
+                          if (checked) {
+                            const refNo = customer.isMember ? customer.memberNo : customer.influencerNo;
+                            if (refNo) fetchContacts(refNo);
+                          } else if (authCustomer) {
+                            setCustomer(prev => ({ ...prev, name: authCustomer.name }));
+                          }
+                        }} 
+                        className="rounded text-primary focus:ring-primary"
+                      />
+                      <span className="font-medium text-gray-700">Pesan untuk orang lain (Dropship)</span>
+                    </label>
+                  )}
+                </div>
+                
+                {isDropship && (
+                  <div className="mb-4 p-4 bg-primary/5 rounded-xl border border-primary/10">
+                    <label className="block text-sm font-medium mb-2 text-primary">Pilih dari Buku Alamat</label>
+                    <select 
+                      value={selectedContactId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSelectedContactId(val);
+                        if (val === "NEW") {
+                          setCustomer(prev => ({ ...prev, name: "", phone: "", address: "", district: "", village: "", city: "" }));
+                        } else if (val) {
+                          const contact = referralContacts.find(c => c.contact_id === val);
+                          if (contact) {
+                            setCustomer(prev => ({
+                              ...prev,
+                              name: contact.name || "",
+                              phone: contact.whatsapp || "",
+                              address: contact.address || "",
+                              district: contact.district || "",
+                              village: contact.village || "",
+                              city: contact.city || ""
+                            }));
+                          }
+                        }
+                      }}
+                      className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary bg-white shadow-sm"
+                    >
+                      <option value="">-- Pilih Alamat Tersimpan --</option>
+                      {referralContacts.map(c => (
+                        <option key={c.contact_id} value={c.contact_id}>
+                          {c.name} ({c.whatsapp}) - {c.address?.substring(0, 30)}...
+                        </option>
+                      ))}
+                      <option value="NEW">+ Tambah Alamat Baru</option>
+                    </select>
+                  </div>
+                )}
+                
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium mb-1">Nama Lengkap *</label>
@@ -386,16 +481,22 @@ export default function KeranjangPage() {
                     <label className="block text-sm font-medium mb-1">Alamat Lengkap *</label>
                     <textarea value={customer.address} onChange={e => setCustomer({...customer, address: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary h-20" placeholder="Jl. Raya Pamotan..."></textarea>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Kecamatan</label>
-                      <input type="text" value={customer.district} onChange={e => setCustomer({...customer, district: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="Opsional" />
+                  {(!authCustomer || (isDropship && selectedContactId === 'NEW')) && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Kecamatan</label>
+                        <input type="text" value={customer.district} onChange={e => setCustomer({...customer, district: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="Kecamatan" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Desa</label>
+                        <input type="text" value={customer.village} onChange={e => setCustomer({...customer, village: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="Desa" />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium mb-1">Kota/Kab.</label>
+                        <input type="text" value={customer.city} onChange={e => setCustomer({...customer, city: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="Kota/Kab." />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Desa</label>
-                      <input type="text" value={customer.village} onChange={e => setCustomer({...customer, village: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="Opsional" />
-                    </div>
-                  </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium mb-1">Catatan</label>
                     <input type="text" value={customer.notes} onChange={e => setCustomer({...customer, notes: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="Catatan opsional..." />
@@ -406,38 +507,63 @@ export default function KeranjangPage() {
               {/* Membership */}
               <div className="pt-2 border-t border-border">
                 <h3 className="font-bold mb-3">Keanggotaan KOPANA</h3>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Status Keanggotaan</label>
-                    <select 
-                      value={customer.isMember ? "true" : "false"} 
-                      onChange={e => setCustomer({...customer, isMember: e.target.value === "true"})} 
-                      className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary bg-white"
-                    >
-                      <option value="false">Bukan Anggota</option>
-                      <option value="true">✅ Ya, Saya Anggota</option>
-                    </select>
+                {authCustomer ? (
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl mb-4">
+                     <p className="font-medium text-gray-800">
+                        Status: {authCustomer.role === "member" ? `Anggota KOPANA (${authCustomer.member_no})` : "Bukan Anggota KOPANA"}
+                     </p>
                   </div>
-                  
-                  {customer.isMember ? (
+                ) : (
+                  <div className="space-y-3">
                     <div>
-                      <label className="block text-sm font-medium mb-1">Nomor Anggota *</label>
-                      <div className="flex gap-2">
-                        <input type="text" value={customer.memberNo} onChange={e => setCustomer({...customer, memberNo: e.target.value})} className="flex-1 px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="KPM-XXX" />
-                        <button type="button" onClick={handleVerifyMember} disabled={verifying || !customer.memberNo} className="bg-gray-200 text-gray-800 px-4 py-2 rounded-xl font-medium hover:bg-gray-300 disabled:opacity-50">
-                          {verifying ? 'Cek...' : 'Cek'}
-                        </button>
+                      <label className="block text-sm font-medium mb-1">Status Keanggotaan</label>
+                      <select 
+                        value={customer.isMember ? "true" : "false"} 
+                        onChange={e => setCustomer({...customer, isMember: e.target.value === "true", memberNo: "", influencerNo: ""})} 
+                        className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary bg-white"
+                      >
+                        <option value="false">Bukan Anggota KOPANA</option>
+                        <option value="true">Ya, Saya Anggota KOPANA</option>
+                      </select>
+                    </div>
+
+                    {customer.isMember ? (
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Nomor Anggota</label>
+                        <div className="flex gap-2">
+                          <input 
+                            type="text" 
+                            value={customer.memberNo} 
+                            onChange={e => setCustomer({...customer, memberNo: e.target.value})} 
+                            className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" 
+                            placeholder="Contoh: 123" 
+                          />
+                          <button 
+                            type="button"
+                            onClick={handleVerifyMember}
+                            disabled={verifying || !customer.memberNo}
+                            className="px-4 py-2 bg-primary text-white font-medium rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap"
+                          >
+                            {verifying ? "Mengecek..." : "Cek"}
+                          </button>
+                        </div>
+                        {memberError && <p className="text-red-500 text-sm mt-1">{memberError}</p>}
+                        {memberInfo && <p className="text-green-600 text-sm mt-1">Terverifikasi: {memberInfo.name} ({memberInfo.branch})</p>}
                       </div>
-                      {memberError && <p className="text-danger text-xs mt-1">{memberError}</p>}
-                      {memberInfo && <p className="text-success text-xs mt-1">Halo, {memberInfo.name}!</p>}
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Kode Referral / Influencer <span className="text-gray-400 font-normal">(Opsional)</span></label>
-                      <input type="text" value={customer.influencerNo} onChange={e => setCustomer({...customer, influencerNo: e.target.value})} className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" placeholder="Nomor Anggota Referensi" />
-                    </div>
-                  )}
-                </div>
+                    ) : (
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Kode Referral/Influencer (Opsional)</label>
+                        <input 
+                          type="text" 
+                          value={customer.influencerNo} 
+                          onChange={e => setCustomer({...customer, influencerNo: e.target.value})} 
+                          className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary" 
+                          placeholder="Masukkan nomor Influencer jika ada" 
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Payment Method */}
@@ -454,7 +580,7 @@ export default function KeranjangPage() {
                 </select>
               </div>
 
-              <button disabled={loading || (customer.isMember && !memberInfo)} type="submit" className="w-full bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-4">
+              <button disabled={loading || (customer.isMember && !memberInfo && !authCustomer)} type="submit" className="w-full bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-4">
                 {loading ? 'Memproses...' : 'Buat Pesanan'}
               </button>
             </form>

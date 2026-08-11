@@ -11,7 +11,7 @@ export default function AdminProductsPage() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    id: '', name: '', price: '', cost_price: '', promo_price: '', stock: '', category: 'Al-Qur\'an',
+    id: '', name: '', price: '', cost_price: '', promo_price: '', stock: '', min_stock: '5', category: 'Al-Qur\'an',
     weight: '1000', description: '', image_url: '', status: 'ACTIVE'
   });
 
@@ -47,6 +47,7 @@ export default function AdminProductsPage() {
         cost_price: form.cost_price,
         promo_price: form.promo_price,
         stock: form.stock,
+        min_stock: form.min_stock,
         category_id: form.category,
         weight: form.weight,
         description: form.description,
@@ -57,7 +58,7 @@ export default function AdminProductsPage() {
       const res = await saveProductAdmin(payload);
       if (res.success) {
         setShowForm(false);
-        setForm({ id: '', name: '', price: '', cost_price: '', promo_price: '', stock: '', category: categories.length > 0 ? categories[0].category_id : '', weight: '1000', description: '', image_url: '', status: 'ACTIVE' });
+        setForm({ id: '', name: '', price: '', cost_price: '', promo_price: '', stock: '', min_stock: '5', category: categories.length > 0 ? categories[0].category_id : '', weight: '1000', description: '', image_url: '', status: 'ACTIVE' });
         loadData();
       } else {
         alert("Gagal menyimpan produk: " + res.message);
@@ -116,6 +117,10 @@ export default function AdminProductsPage() {
               <input required type="number" value={form.stock} onChange={e => setForm({...form, stock: e.target.value})} className="w-full px-4 py-2 border rounded-xl" placeholder="50" />
             </div>
             <div>
+              <label className="block text-sm font-medium mb-1">Min. Stok (Batas Notifikasi)</label>
+              <input required type="number" value={form.min_stock} onChange={e => setForm({...form, min_stock: e.target.value})} className="w-full px-4 py-2 border rounded-xl" placeholder="5" />
+            </div>
+            <div>
               <label className="block text-sm font-medium mb-1">Kategori</label>
               <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full px-4 py-2 border rounded-xl bg-white">
                 {categories.map((c: any) => (
@@ -156,6 +161,7 @@ export default function AdminProductsPage() {
               cost_price: item.cost_price || '',
               promo_price: item.promo_price || '',
               stock: item.stock, 
+              min_stock: item.min_stock || '5',
               category: item.category_id || item.category, 
               weight: item.weight || '1000', 
               description: item.description || '', 

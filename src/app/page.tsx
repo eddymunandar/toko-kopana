@@ -62,7 +62,7 @@ export default function Home() {
 
   const filteredProducts = products.filter(p => {
     const matchCat = activeCategory === '' || p.category === activeCategory;
-    const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchSearch = (p.name || '').toLowerCase().includes((searchQuery || '').toLowerCase());
     return matchCat && matchSearch;
   });
   
@@ -77,7 +77,7 @@ export default function Home() {
               key={idx} 
               className={`absolute inset-0 flex items-center justify-center transition-opacity duration-1000 ${idx === currentBanner ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
             >
-              <img src={banner.image_url} alt="Banner" className="w-full h-full object-contain" />
+              <img src={banner.image_url} alt="Banner" className="w-full h-full object-cover object-center" />
             </div>
           ))}
           {banners.length > 1 && (
@@ -95,7 +95,7 @@ export default function Home() {
       )}
 
       {/* Search Bar Mobile */}
-      <div className="md:hidden px-3 mt-2 mb-4">
+      <div id="katalog-mobile" className="md:hidden px-3 mt-2 mb-4 scroll-mt-24">
         <div className="flex items-center gap-2 bg-white border border-border rounded-full px-4 py-2.5 shadow-sm">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -111,7 +111,7 @@ export default function Home() {
       </div>
 
       {/* Desktop Search Bar */}
-      <div className="hidden md:flex justify-between items-center mb-8">
+      <div id="katalog" className="hidden md:flex justify-between items-center mb-8 scroll-mt-24">
         <h2 className="text-2xl font-bold tracking-tight text-foreground">Katalog Produk</h2>
         <div className="w-72">
           <input 

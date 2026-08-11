@@ -51,6 +51,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin/pesanan" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white/70 transition-colors">
             <i className="fa-solid fa-box w-6"></i> Pesanan
           </Link>
+          <Link href="/admin/pengiriman" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white/70 transition-colors">
+            <i className="fa-solid fa-truck-fast w-6"></i> Pengiriman
+          </Link>
           <Link href="/admin/kategori" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white/70 transition-colors">
             <i className="fa-solid fa-tags w-6"></i> Kategori
           </Link>
@@ -58,7 +61,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <i className="fa-solid fa-cube w-6"></i> Produk
           </Link>
           <Link href="/admin/anggota" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white/70 transition-colors">
-            <i className="fa-solid fa-users w-6"></i> Anggota
+            <i className="fa-solid fa-users w-6"></i> Data Anggota
+          </Link>
+          <Link href="/admin/pelanggan" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white/70 transition-colors">
+            <i className="fa-solid fa-address-book w-6"></i> Pelanggan Web
           </Link>
           <div className="pt-4 pb-2 px-4 text-xs font-bold text-white/40 uppercase tracking-wider">Keuangan</div>
           <Link href="/admin/laporan-penjualan" className="block px-4 py-2 hover:bg-white/10 rounded-xl font-medium text-white/70 transition-colors">
