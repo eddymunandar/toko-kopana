@@ -1,6 +1,4 @@
-// URL Web App Google Apps Script
-// Menggunakan URL deployment terbaru dari Code.js
-export const API_URL = "https://script.google.com/macros/s/AKfycbzWB5N5qjG5BpiJ795KpHUk9r3-CpFtxN9dVrW1_AN3ivnwxQT-OKvQTqE6MkcYR7NU/exec";
+import { supabase } from './supabase';
 
 export interface Product {
   id: string;
@@ -15,79 +13,28 @@ export interface Product {
   weight?: number;
 }
 
-const cache = new Map<string, { data: any, timestamp: number }>();
-const CACHE_TTL = 60 * 1000; // 60 seconds
-
 export function invalidateCache() {
-  cache.clear();
+  // Not required for Supabase, keeping for compatibility
 }
 
-async function fetchWithCache(url: string, forceRefresh = false): Promise<any> {
-  const now = Date.now();
-  if (!forceRefresh && cache.has(url)) {
-    const cached = cache.get(url)!;
-    if (now - cached.timestamp < CACHE_TTL) {
-      return cached.data;
-    }
-  }
-  
-  const res = await fetch(url, { cache: 'no-store' });
-  if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-  const json = await res.json();
-  
-  cache.set(url, { data: json, timestamp: now });
-  return json;
-}
-
-/**
- * Helper function for POST requests to Google Apps Script
- * Menggunakan text/plain agar tidak memicu preflight (CORS OPTIONS) yang tidak didukung GAS
- */
-async function postData(action: string, payload: any = {}): Promise<any> {
-  try {
-    const url = `${API_URL}?api=true`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8',
-      },
-      body: JSON.stringify({
-        action,
-        payload
-      }),
-    });
-    const result = await res.json();
-    if (result && result.success !== false) {
-      invalidateCache(); // Clear cache on successful mutation
-    }
-    return result;
-  } catch (err) {
-    console.error(`Error in postData (${action}):`, err);
-    return { success: false, message: 'Gagal menghubungi server' };
-  }
-}
-
-/**
- * Mengambil daftar produk dari Google Apps Script
- */
 export async function getProducts(): Promise<Product[]> {
   try {
-    const url = `${API_URL}?api=true&action=getProducts`;
-    const json = await fetchWithCache(url);
-    
-    if (json.success && json.data) {
-      // Map data dari GAS ke struktur yang kita butuhkan
-      return json.data.map((p: any) => ({
-        id: p.product_id || p.id,
-        name: p.name,
-        price: Number(p.price) || 0,
-        promo_price: Number(p.promo_price) || 0,
-        cost_price: Number(p.cost_price) || 0,
-        image: p.image || '',
-        category: p.category_id || p.category || 'Lainnya',
-        stock: Number(p.stock) || 0,
-        description: p.description || '',
-        weight: Number(p.weight) || 1000
+    const { data, error } = await supabase.from('produk').select('*');
+    if (error) throw error;
+    if (data) {
+      return data
+        .filter((p: any) => p.is_active === true || p.is_active === 'TRUE' || p.is_active === 1 || p.is_active === 'ACTIVE' || p.is_active == null)
+        .map((p: any) => ({
+          id: p.product_id || p.id,
+          name: p.name,
+          price: Number(p.price) || 0,
+          promo_price: Number(p.promo_price) || 0,
+          cost_price: Number(p.cost_price) || 0,
+          image: p.image || p.image_url || '',
+          category: p.category_id || p.category || 'Lainnya',
+          stock: Number(p.stock) || 0,
+          description: p.description || '',
+          weight: Number(p.weight) || 1000
       }));
     }
     return [];
@@ -97,91 +44,117 @@ export async function getProducts(): Promise<Product[]> {
   }
 }
 
-/**
- * Checkout keranjang belanja
- */
 export async function checkout(payload: any) {
-  return postData('saveOrder', payload);
+  try {
+    const { data, error } = await supabase.from('pesanan').insert([payload]);
+    if (error) throw error;
+    return { success: true, message: 'Pesanan berhasil disimpan' };
+  } catch (err) {
+    console.error("Error checkout:", err);
+    return { success: false, message: 'Gagal menyimpan pesanan' };
+  }
 }
 
-/**
- * [Admin] Mengambil daftar pesanan
- */
 export async function getOrders(): Promise<any[]> {
   try {
-    const url = `${API_URL}?api=true&action=getOrdersAdmin`;
-    const json = await fetchWithCache(url);
-    return json.success && json.data ? json.data : [];
+    const { data, error } = await supabase.from('pesanan').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
   } catch (err) {
     console.error("Error fetching orders:", err);
     return [];
   }
 }
 
-/**
- * [Admin] Update status pesanan
- */
 export async function updateOrderStatus(orderId: string, newStatus: string, adminName: string = 'Admin'): Promise<any> {
-  return postData('updateOrderStatus', { orderId, newStatus, adminName });
+  try {
+    const { data, error } = await supabase.from('pesanan').update({ status: newStatus }).eq('order_id', orderId);
+    if (error) {
+      // fallback if primary key is id
+      const { error: err2 } = await supabase.from('pesanan').update({ status: newStatus }).eq('id', orderId);
+      if (err2) throw err2;
+    }
+    return { success: true };
+  } catch (err) {
+    console.error("Error updating order:", err);
+    return { success: false };
+  }
 }
 
-/**
- * [Admin] Mengambil data dashboard
- */
 export async function getDashboardData(): Promise<any> {
   try {
-    const url = `${API_URL}?api=true&action=getDashboardData`;
-    const json = await fetchWithCache(url);
-    return json.success && json.data ? json.data : null;
+    const [orders, products, members, expenses] = await Promise.all([
+      supabase.from('pesanan').select('*'),
+      supabase.from('produk').select('*'),
+      supabase.from('member').select('*'),
+      supabase.from('pengeluaran').select('*')
+    ]);
+    
+    const oData = orders.data || [];
+    const expData = expenses.data || [];
+    const total_sales_month = oData.filter(o => o.status?.toUpperCase() === 'SELESAI').reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+    const total_expenses_month = expData.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    
+    // Calculate total COGS (Cost of Goods Sold)
+    // For simplicity, we just set it to 0 or calculate from orders if they store cogs
+    const total_cogs_month = 0; 
+
+    return {
+      total_sales_month,
+      completed_orders: oData.filter(o => o.status?.toUpperCase() === 'SELESAI').length,
+      total_expenses_month,
+      total_cogs_month,
+      totalOrders: oData.length,
+      totalProducts: (products.data || []).length,
+      totalMembers: (members.data || []).length,
+      recentOrders: oData.slice(0, 5)
+    };
   } catch (err) {
-    console.error("Error fetching dashboard data:", err);
+    console.error("Error dashboard data:", err);
     return null;
   }
 }
 
-/**
- * [Admin] Mengambil daftar pengeluaran
- */
 export async function getAdminExpenses(): Promise<any[]> {
   try {
-    const url = `${API_URL}?api=true&action=getAdminExpenses`;
-    const json = await fetchWithCache(url);
-    return json.success && json.data ? json.data : [];
+    const { data, error } = await supabase.from('pengeluaran').select('*').order('created_at', { ascending: false });
+    return data || [];
   } catch (err) {
-    console.error("Error fetching expenses:", err);
     return [];
   }
 }
 
-/**
- * [Admin] Menyimpan pengeluaran baru
- */
 export async function saveExpense(expenseData: any, adminName: string = 'Admin'): Promise<any> {
-  return postData('saveExpense', { expenseData, adminName });
+  try {
+    const { data, error } = await supabase.from('pengeluaran').insert([{ ...expenseData, admin_name: adminName }]);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }
 
-/**
- * [Admin] Menghapus pengeluaran
- */
 export async function deleteExpense(expenseId: string, adminName: string = 'Admin'): Promise<any> {
-  return postData('deleteExpense', { expenseId, adminName });
+  try {
+    const { data, error } = await supabase.from('pengeluaran').delete().eq('id', expenseId);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }
 
-/**
- * [Admin] Mengambil semua produk termasuk status aktif
- */
 export async function getAllProductsAdmin(): Promise<any[]> {
   try {
-    const url = `${API_URL}?api=true&action=getAllProductsAdmin`;
-    const json = await fetchWithCache(url);
-    
-    if (json.success && json.data) {
-      return json.data.map((p: any) => ({
+    const { data, error } = await supabase.from('produk').select('*');
+    if (error) throw error;
+    if (data) {
+      return data.map((p: any) => ({
         ...p,
-        id: p.product_id,
-        category: p.category_id,
-        image_url: p.image,
-        status: (p.is_active === true || p.is_active === 'true' || p.is_active === 'TRUE' || p.is_active === 1) ? 'ACTIVE' : 'INACTIVE'
+        id: p.product_id || p.id,
+        category: p.category_id || p.category,
+        image_url: p.image || p.image_url,
+        status: (p.is_active === true || p.is_active === 'true' || p.is_active === 'ACTIVE' || p.is_active === 1) ? 'ACTIVE' : 'INACTIVE'
       }));
     }
     return [];
@@ -191,147 +164,229 @@ export async function getAllProductsAdmin(): Promise<any[]> {
   }
 }
 
-/**
- * [Admin] Menyimpan/Update produk
- */
 export async function saveProductAdmin(payload: any): Promise<any> {
-  return postData('saveProductAdmin', payload);
+  try {
+    if (payload.id) {
+      const { data, error } = await supabase.from('produk').update(payload).eq('id', payload.id).or(`product_id.eq.${payload.id}`);
+      if (error) throw error;
+    } else {
+      const { data, error } = await supabase.from('produk').insert([payload]);
+      if (error) throw error;
+    }
+    return { success: true };
+  } catch (err) {
+    console.error("Error saving product:", err);
+    return { success: false };
+  }
 }
 
-/**
- * [Admin] Hapus produk
- */
 export async function deleteProductAdmin(productId: string): Promise<any> {
-  return postData('deleteProductAdmin', { productId });
+  try {
+    const { error } = await supabase.from('produk').delete().eq('id', productId).or(`product_id.eq.${productId}`);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }
 
-/**
- * Mengambil daftar kategori
- */
 export async function getCategories(): Promise<any[]> {
   try {
-    const url = `${API_URL}?api=true&action=getCategories`;
-    const json = await fetchWithCache(url);
-    
-    if (json.success && json.data) {
-      return json.data.map((c: any) => {
-        // Fix for broken sheet headers where description was mapped to icon, and icon to ''
-        if (c[''] && typeof c[''] === 'string' && (c[''].startsWith('fa-') || c[''].includes('fa'))) {
-          return {
-            category_id: c.category_id,
-            name: c.name,
-            description: c.icon,
-            icon: c['']
-          };
-        }
-        return c;
-      });
-    }
-    return [];
+    const { data, error } = await supabase.from('kategori').select('*');
+    if (error) throw error;
+    return data || [];
   } catch (err) {
-    console.error("Error fetching categories:", err);
     return [];
   }
 }
 
-/**
- * Mengambil daftar banner aktif
- */
 export async function getBanners(): Promise<any[]> {
   try {
-    const url = `${API_URL}?api=true&action=getBanners`;
-    const data = await fetchWithCache(url);
-    return data.success ? data.data : [];
+    const { data, error } = await supabase.from('banner').select('*').eq('is_active', true);
+    return data || [];
   } catch (error) {
-    console.error("Error fetching banners:", error);
     return [];
   }
 }
-
-// ---------------- Admin ----------------
 
 export async function getAllMembers(): Promise<any[]> {
   try {
-    const url = `${API_URL}?api=true&action=getAllMembers`;
-    const data = await fetchWithCache(url);
-    return data.success ? data.data : [];
+    const { data, error } = await supabase.from('member').select('*');
+    return data || [];
   } catch (error) {
-    console.error("Error fetching all members:", error);
     return [];
   }
 }
 
 export async function saveMember(memberData: any): Promise<any> {
-  return postData('saveMember', memberData);
+  try {
+    const { data, error } = await supabase.from('member').insert([memberData]);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }
 
 export async function deleteMember(memberNo: string): Promise<any> {
-  return postData('deleteMember', { memberNo });
+  try {
+    const { error } = await supabase.from('member').delete().eq('member_no', memberNo);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }
 
 export async function getSalesReport(startDate: string, endDate: string): Promise<any> {
   try {
-    const url = `${API_URL}?api=true&action=getSalesReport&startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
-    const data = await fetchWithCache(url);
-    return data.success ? data.data : null;
-  } catch (error) {
-    console.error("Error fetching sales report:", error);
+    const { data, error } = await supabase.from('pesanan')
+      .select('*')
+      .gte('created_at', startDate)
+      .lte('created_at', endDate);
+    if (error) throw error;
+    
+    const orders = data || [];
+    const total_revenue = orders.filter(o => o.status?.toUpperCase() === 'SELESAI').reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+    
+    return { 
+      orders,
+      total_revenue
+    };
+  } catch (err) {
     return null;
   }
 }
 
-export async function getMemberYearlyReport(year: string | number): Promise<any> {
+export async function getMemberYearlyReport(year: string | number): Promise<any[]> {
   try {
-    const url = `${API_URL}?api=true&action=getMemberYearlyReport&year=${year}`;
-    const data = await fetchWithCache(url);
-    return data.success ? data.data : null;
-  } catch (error) {
-    console.error("Error fetching member yearly report:", error);
-    return null;
+    const { data: members, error: mErr } = await supabase.from('member').select('*');
+    const { data: orders, error: oErr } = await supabase.from('pesanan')
+      .select('*')
+      .gte('created_at', `${year}-01-01`)
+      .lte('created_at', `${year}-12-31T23:59:59`);
+
+    if (mErr || oErr || !members) return [];
+
+    const report = members.map((m: any) => {
+      const memStr = String(m.member_no || '').replace(/^CAT-MS/i, '').replace(/^MS/i, '').trim();
+
+      const memberOrders = (orders || []).filter((o: any) => {
+        // Jika ada referral_code, belanja masuk ke member pemilik kode tersebut
+        if (o.referral_code) {
+          const refStr = String(o.referral_code).replace(/^CAT-MS/i, '').replace(/^MS/i, '').trim();
+          return refStr === memStr;
+        }
+
+        // Jika tidak ada referral, cek apakah customer adalah member ini
+        return (o.customer_name && m.name && o.customer_name.toLowerCase() === m.name.toLowerCase()) || 
+               (o.customer_phone && m.phone && o.customer_phone === m.phone);
+      });
+
+      const monthly = new Array(12).fill(0);
+      let total_spend = 0;
+
+      memberOrders.forEach((o: any) => {
+        // Only count 'Selesai' orders
+        if (o.status && o.status.toUpperCase() !== 'SELESAI') return;
+        
+        const d = new Date(o.created_at);
+        const mIdx = d.getMonth();
+        const amt = Number(o.total_amount) || 0;
+        monthly[mIdx] += amt;
+        total_spend += amt;
+      });
+
+      return {
+        member_no: m.member_no,
+        name: m.name,
+        monthly,
+        total_spend
+      };
+    });
+
+    // sort by highest spend
+    return report.sort((a, b) => b.total_spend - a.total_spend);
+  } catch (err) {
+    console.error(err);
+    return [];
   }
 }
 
 export async function saveCategoryAdmin(categoryData: any): Promise<any> {
-  return postData('saveCategoryAdmin', categoryData);
+  try {
+    const { data, error } = await supabase.from('kategori').insert([categoryData]);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }
 
 export async function deleteCategoryAdmin(categoryId: string): Promise<any> {
-  return postData('deleteCategoryAdmin', { categoryId });
+  try {
+    const { error } = await supabase.from('kategori').delete().eq('category_id', categoryId).or(`id.eq.${categoryId}`);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }
 
 export async function getAllBannersAdmin(): Promise<any[]> {
   try {
-    const url = `${API_URL}?api=true&action=getAllBannersAdmin`;
-    const data = await fetchWithCache(url);
-    return data.success ? data.data : [];
+    const { data, error } = await supabase.from('banner').select('*');
+    return data || [];
   } catch (error) {
-    console.error("Error fetching all banners:", error);
     return [];
   }
 }
 
 export async function saveBanner(bannerData: any): Promise<any> {
-  return postData('saveBanner', bannerData);
+  try {
+    const { data, error } = await supabase.from('banner').insert([bannerData]);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }
 
 export async function deleteBanner(bannerId: string): Promise<any> {
-  return postData('deleteBanner', { bannerId });
+  try {
+    const { error } = await supabase.from('banner').delete().eq('id', bannerId);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }
 
 export async function toggleBannerStatus(bannerId: string): Promise<any> {
-  return postData('toggleBannerStatus', { bannerId });
+  try {
+    const { data: bannerItem } = await supabase.from('banner').select('is_active').eq('id', bannerId).single();
+    const { error } = await supabase.from('banner').update({ is_active: !bannerItem?.is_active }).eq('id', bannerId);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }
 
 export async function saveSettingBanner(imgUrl: string): Promise<any> {
-  return postData('saveSettingBanner', { imgUrl });
+  try {
+    const { error } = await supabase.from('pengaturan_toko').update({ banner_url: imgUrl }).eq('id', 1);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }
 
 export async function getSettingBanner(): Promise<any> {
   try {
-    const url = `${API_URL}?api=true&action=getSettingBanner`;
-    const json = await fetchWithCache(url);
-    if (json.success) return json.data;
-    return '';
+    const { data, error } = await supabase.from('pengaturan_toko').select('banner_url').eq('id', 1).single();
+    return data?.banner_url || '';
   } catch (err) {
     return '';
   }
@@ -339,87 +394,125 @@ export async function getSettingBanner(): Promise<any> {
 
 export async function getStoreSettings(): Promise<any> {
   try {
-    const url = `${API_URL}?api=true&action=getStoreSettings`;
-    const json = await fetchWithCache(url, true); // forceRefresh to get latest settings
-    if (json.success) return json.data;
-    return {};
+    const { data, error } = await supabase.from('pengaturan_toko').select('*').limit(1).single();
+    return data || {};
   } catch (err) {
     return {};
   }
 }
 
 export async function saveStoreSettings(settings: any): Promise<any> {
-  return postData('saveStoreSettings', settings);
+  try {
+    const { error } = await supabase.from('pengaturan_toko').upsert([{ id: 1, ...settings }]);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }
 
 export async function getPromosAdmin(): Promise<any[]> {
   try {
-    const url = `${API_URL}?api=true&action=getPromosAdmin`;
-    const data = await fetchWithCache(url);
-    return data.success ? data.data : [];
+    const { data, error } = await supabase.from('promo').select('*');
+    return data || [];
   } catch (error) {
-    console.error("Error fetching promos:", error);
     return [];
   }
 }
 
 export async function savePromo(promoData: any): Promise<any> {
-  return postData('savePromo', promoData);
+  try {
+    const { data, error } = await supabase.from('promo').insert([promoData]);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }
 
 export async function deletePromo(promoId: string): Promise<any> {
-  return postData('deletePromo', { promoId });
+  try {
+    const { error } = await supabase.from('promo').delete().eq('id', promoId);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }
 
 export async function togglePromoStatus(promoId: string): Promise<any> {
-  return postData('togglePromoStatus', { promoId });
+  try {
+    const { data: promoItem } = await supabase.from('promo').select('is_active').eq('id', promoId).single();
+    const { error } = await supabase.from('promo').update({ is_active: !promoItem?.is_active }).eq('id', promoId);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }
 
-/**
- * Melacak status pesanan
- */
 export async function trackOrder(orderId: string): Promise<any> {
   try {
-    const url = `${API_URL}?api=true&action=trackOrder&orderId=${orderId}`;
-    const json = await fetchWithCache(url, true); // Don't cache trackOrder as it might need real-time status
-    return json;
+    const { data, error } = await supabase.from('pesanan').select('*').eq('order_id', orderId).single();
+    if (error) {
+       const { data: d2, error: err2 } = await supabase.from('pesanan').select('*').eq('id', orderId).single();
+       if (err2 || !d2) throw err2;
+       return { success: true, data: d2 };
+    }
+    return { success: true, data };
   } catch (err) {
-    console.error("Error tracking order:", err);
-    return { success: false, message: "Terjadi kesalahan jaringan" };
+    return { success: false, message: "Pesanan tidak ditemukan" };
   }
 }
 
-/**
- * Verifikasi Member
- */
 export async function verifyMember(memberNo: string): Promise<any> {
   try {
-    const url = `${API_URL}?api=true&action=verifyMember&memberNo=${memberNo}`;
-    const json = await fetchWithCache(url);
-    return json;
+    const { data, error } = await supabase.from('member').select('*').eq('member_no', memberNo).single();
+    if (error || !data) throw error;
+    return { success: true, data };
   } catch (err) {
-    console.error("Error verifying member:", err);
-    return { success: false, message: "Terjadi kesalahan jaringan" };
+    return { success: false, message: "Member tidak ditemukan" };
   }
 }
 
-/**
- * Upload Bukti Pembayaran
- */
 export async function submitPaymentProof(orderId: string, base64Image: string): Promise<any> {
-  return postData('submitPaymentProof', { orderId, imageUrl: base64Image });
+  try {
+    const { error } = await supabase.from('pesanan').update({ payment_proof: base64Image, status: 'MENUNGGU VERIFIKASI' }).eq('order_id', orderId);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }
 
 // --- Customer Auth API ---
 
 export async function registerCustomer(payload: any) {
-  return postData('registerCustomer', payload);
+  try {
+    const { data, error } = await supabase.from('pelanggan').insert([payload]);
+    if (error) throw error;
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, message: 'Gagal register' };
+  }
 }
 
 export async function loginCustomer(payload: any) {
-  return postData('loginCustomer', payload);
+  try {
+    const { data, error } = await supabase.from('pelanggan').select('*').eq('email', payload.email).eq('password', payload.password).single();
+    if (error || !data) throw error;
+    return { success: true, data };
+  } catch (err) {
+    return { success: false, message: 'Login gagal' };
+  }
 }
 
 export async function updateCustomerProfile(payload: any) {
-  return postData('updateCustomerProfile', payload);
+  try {
+    const { error } = await supabase.from('pelanggan').update(payload).eq('email', payload.email);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    return { success: false };
+  }
 }

@@ -65,17 +65,17 @@ export default function PengeluaranPage() {
                     </td>
                   </tr>
                 ) : (
-                  expenses.map((expense: any) => (
-                    <tr key={expense.expense_id} className="hover:bg-surface-hover/50 transition-colors text-sm">
+                  expenses.map((expense: any, i: number) => (
+                    <tr key={expense.id || i} className="hover:bg-surface-hover/50 transition-colors text-sm">
                       <td className="px-4 py-3 text-foreground/80">
-                        {new Date(expense.date).toLocaleDateString('id-ID')}
+                        {new Date(expense.created_at || expense.date).toLocaleDateString('id-ID')}
                       </td>
                       <td className="px-4 py-3 font-medium">{expense.description}</td>
                       <td className="px-4 py-3 text-danger font-bold">
                         Rp {Number(expense.amount).toLocaleString('id-ID')}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="px-2 py-1 bg-gray-100 rounded-lg text-xs font-semibold text-gray-600">{expense.category}</span>
+                        <span className="px-2 py-1 bg-gray-100 rounded-lg text-xs font-semibold text-gray-600">{expense.admin_name || 'Admin'}</span>
                       </td>
                     </tr>
                   ))

@@ -32,11 +32,11 @@ function PrintStruk({ order }: { order: any }) {
   <p class="center">Koperasi Serba Usaha</p>
   <div class="divider"></div>
   <p>No: <b>${order.order_id}</b></p>
-  <p>Tgl: ${new Date(order.date).toLocaleString('id-ID')}</p>
+  <p>Tgl: ${new Date(order.created_at || order.date).toLocaleString('id-ID')}</p>
   <p>Pelanggan: ${order.customer_name || '-'}</p>
   <p>No. HP: ${order.customer_phone || '-'}</p>
-  <p>Alamat: ${order.customer_address || '-'}</p>
-  <p>No. Anggota: ${order.member_no || '-'}</p>
+  <p>Alamat: ${order.shipping_address || order.customer_address || '-'}</p>
+  <p>No. Anggota: ${order.referral_code || order.member_no || '-'}</p>
   <div class="divider"></div>
   <table>
     <tr><td class="bold">Produk</td><td class="right bold">Subtotal</td></tr>
@@ -48,13 +48,13 @@ function PrintStruk({ order }: { order: any }) {
   </table>
   <div class="divider"></div>
   <table>
-    <tr><td>Subtotal</td><td class="right">Rp${Number(order.subtotal || order.grand_total).toLocaleString('id-ID')}</td></tr>
+    <tr><td>Subtotal</td><td class="right">Rp${Number(order.total_amount - (order.shipping_cost || 0)).toLocaleString('id-ID')}</td></tr>
     ${order.shipping_cost ? `<tr><td>Ongkir</td><td class="right">Rp${Number(order.shipping_cost).toLocaleString('id-ID')}</td></tr>` : ''}
     ${order.discount ? `<tr><td>Diskon</td><td class="right">- Rp${Number(order.discount).toLocaleString('id-ID')}</td></tr>` : ''}
-    <tr class="total"><td>TOTAL</td><td class="right">Rp${Number(order.grand_total).toLocaleString('id-ID')}</td></tr>
+    <tr class="total"><td>TOTAL</td><td class="right">Rp${Number(order.total_amount || order.grand_total).toLocaleString('id-ID')}</td></tr>
   </table>
   <div class="divider"></div>
-  <p class="center">Status: <b>${order.order_status || 'PENDING'}</b></p>
+  <p class="center">Status: <b>${order.status || order.order_status || 'PENDING'}</b></p>
   <p class="center">Terima kasih telah berbelanja!</p>
   <br/>
   <div class="center"><button onclick="window.print()">🖨️ Print Struk</button></div>
@@ -182,7 +182,7 @@ export default function AdminOrdersPage() {
                   <tr key={order.order_id} className="hover:bg-surface-hover/50 transition-colors">
                     <td className="px-4 py-3 font-mono text-xs font-bold text-primary">{order.order_id}</td>
                     <td className="px-4 py-3 text-xs text-foreground/80">
-                      {new Date(order.date).toLocaleDateString('id-ID', {
+                      {new Date(order.created_at || order.date).toLocaleDateString('id-ID', {
                         day: 'numeric', month: 'short', year: 'numeric',
                         hour: '2-digit', minute: '2-digit'
                       })}
@@ -192,11 +192,11 @@ export default function AdminOrdersPage() {
                       <div className="text-xs text-foreground/60">{order.customer_phone}</div>
                     </td>
                     <td className="px-4 py-3 font-bold text-sm">
-                      Rp {Number(order.grand_total).toLocaleString('id-ID')}
+                      Rp {Number(order.total_amount || order.grand_total).toLocaleString('id-ID')}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${statusColor[order.order_status || 'PENDING'] || 'bg-gray-100 text-gray-600'}`}>
-                        {order.order_status || 'PENDING'}
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${statusColor[order.status || order.order_status || 'PENDING'] || 'bg-gray-100 text-gray-600'}`}>
+                        {order.status || order.order_status || 'PENDING'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -210,7 +210,7 @@ export default function AdminOrdersPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
-                        <OrderStatusSelect orderId={order.order_id} initialStatus={order.order_status || 'PENDING'} />
+                        <OrderStatusSelect orderId={order.order_id} initialStatus={order.status || order.order_status || 'PENDING'} />
                         <PrintStruk order={order} />
                       </div>
                     </td>
