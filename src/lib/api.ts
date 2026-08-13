@@ -244,8 +244,10 @@ export async function updateOrder(orderId: string, status: string): Promise<any>
 
 // Helper function to map Supabase order fields to the expected frontend fields
 function mapOrderData(o: any) {
+  const parsedItems = typeof o.items === 'string' ? JSON.parse(o.items || '[]') : (o.items || []);
   return {
     ...o,
+    items: parsedItems,
     date: o.created_at,
     order_status: o.status,
     whatsapp: o.customer_phone,
@@ -616,7 +618,7 @@ export async function togglePromoStatus(promoId: string): Promise<any> {
 export async function trackOrder(orderId: string): Promise<any> {
   const { data, error } = await supabase.from('pesanan').select('*').eq('order_id', orderId).single();
   if (error || !data) return { success: false, message: 'Pesanan tidak ditemukan' };
-  return { success: true, data };
+  return { success: true, data: mapOrderData(data) };
 }
 
 export async function verifyMember(memberNo: string): Promise<any> {
