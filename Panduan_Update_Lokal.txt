@@ -1,0 +1,58 @@
+# Panduan Alur Update Aplikasi Toko Kopana
+
+Jika di kemudian hari Bapak ingin membuat perubahan pada aplikasi (misalnya mengubah warna, menambah menu, atau mengubah teks) dari komputer Mac lokal, berikut adalah alur kerja yang tepat dan aman:
+
+## 1. Tahap Uji Coba (Development)
+Tahap ini dilakukan agar Bapak bisa melihat perubahannya di HP tanpa mengganggu toko asli yang sedang dipakai pelanggan.
+
+1. Buka **Terminal** di Mac Bapak.
+2. Pastikan Bapak berada di folder aplikasi: `cd Documents/Antigaravity/toko-kopana-next`
+3. Nyalakan server mode uji coba:
+   ```bash
+   npm run dev -- -H 0.0.0.0
+   ```
+4. Buka aplikasi di HP Bapak melalui alamat IP Mac (misalnya `http://192.168.0.x:3000`).
+5. Lakukan perubahan pada kode (silakan panggil AI jika butuh bantuan).
+6. **Pastikan semua perubahan sudah sesuai dan sempurna di HP.**
+
+> [!TIP]
+> Selama server `dev` menyala, setiap kode yang Bapak simpan akan langsung memperbarui tampilan di HP secara otomatis (*hot-reload*).
+
+---
+
+## 2. Tahap Mengunci & Menyimpan ke Brankas (GitHub)
+Setelah Bapak puas dengan perubahannya, matikan server uji coba (`Control + C` di terminal), lalu simpan kode aslinya ke brankas GitHub agar aman.
+
+Jalankan 3 perintah ini secara berurutan di terminal:
+```bash
+git add .
+git commit -m "Pesan perubahan, contoh: Ganti warna tombol"
+git push origin main
+```
+Setelah langkah ini selesai, kode Bapak sudah tersimpan aman selamanya di internet.
+
+---
+
+## 3. Tahap Persiapan Rilis (Build)
+Kini saatnya mencetak kode uji coba tersebut menjadi kode final yang super cepat untuk pelanggan.
+
+Di terminal yang sama, ketik perintah ini:
+```bash
+npm run build
+```
+> [!NOTE]
+> Proses ini biasanya memakan waktu 1-2 menit. Jika proses ini selesai, komputer akan otomatis membuat sebuah folder baru bernama **`out`** di dalam folder `toko-kopana-next`. Folder inilah yang menjadi nyawa toko Bapak di internet.
+
+---
+
+## 4. Tahap Tayang ke Pelanggan (Cloudflare)
+Langkah terakhir untuk memperbarui situs `shop.kopana.id`:
+
+1. Buka browser dan masuk ke **Dasbor Cloudflare**.
+2. Masuk ke menu **Workers & Pages** -> Pilih proyek **`toko-kopana`**.
+3. Di tab **Deployments**, cari tombol biru bertuliskan **Create deployment** (atau area kotak putus-putus untuk *Drag and Drop* jika Bapak memilih unggah langsung).
+4. Buka **Finder** di Mac, masuk ke folder `Documents/Antigaravity/toko-kopana-next/`
+5. Tarik folder **`out`** ke dalam kotak unggahan di Cloudflare.
+6. Tunggu hingga 100%, lalu klik **Save and Deploy**.
+
+**Selesai!** ✅ Pengunjung situs `shop.kopana.id` sekarang akan melihat versi terbaru dari aplikasi Bapak.

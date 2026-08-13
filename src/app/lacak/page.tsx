@@ -1,6 +1,6 @@
 "use client";
 import { useState } from 'react';
-import { trackOrder, submitPaymentProof } from '@/lib/api';
+import { trackOrder, submitPaymentProof, cancelOrder } from '@/lib/api';
 import Link from 'next/link';
 
 export default function LacakPage() {
@@ -12,6 +12,7 @@ export default function LacakPage() {
   // Payment Proof
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [canceling, setCanceling] = useState(false);
 
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +74,36 @@ export default function LacakPage() {
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const canCancel = (status: string) => {
+    const cancelableStatuses = ['Menunggu Pembayaran', 'PENDING', 'Pending', '', 'null'];
+    return cancelableStatuses.includes(status) || !status;
+  };
+
+  const handleCancel = async () => {
+    if (!order) return;
+    const confirmed = window.confirm(
+      `Apakah Anda yakin ingin membatalkan pesanan ${order.order_id}?\n\nPesanan yang sudah dibatalkan tidak dapat dikembalikan.`
+    );
+    if (!confirmed) return;
+
+    setCanceling(true);
+    try {
+      const res = await cancelOrder(order.order_id);
+      if (res.success) {
+        // Refresh data pesanan
+        const updated = await trackOrder(order.order_id);
+        if (updated.success) setOrder(updated.data);
+        alert('Pesanan berhasil dibatalkan.');
+      } else {
+        alert(res.message || 'Gagal membatalkan pesanan');
+      }
+    } catch (err) {
+      alert('Terjadi kesalahan saat membatalkan pesanan');
+    } finally {
+      setCanceling(false);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -180,6 +211,22 @@ export default function LacakPage() {
                     </label>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Tombol Batalkan Pesanan - hanya muncul jika belum bayar */}
+            {canCancel(order.order_status) && (
+              <div className="border-t border-border pt-6 mt-6">
+                <button
+                  onClick={handleCancel}
+                  disabled={canceling}
+                  className="w-full bg-danger hover:bg-red-700 text-white font-bold py-3 px-6 rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {canceling ? 'Membatalkan...' : '✕ Batalkan Pesanan'}
+                </button>
+                <p className="text-xs text-foreground/50 text-center mt-2">
+                  Pesanan hanya dapat dibatalkan jika belum melakukan pembayaran.
+                </p>
               </div>
             )}
           </div>

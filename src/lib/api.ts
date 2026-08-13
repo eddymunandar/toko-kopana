@@ -621,6 +621,21 @@ export async function trackOrder(orderId: string): Promise<any> {
   return { success: true, data: mapOrderData(data) };
 }
 
+export async function cancelOrder(orderId: string): Promise<any> {
+  // Cek status pesanan dulu, hanya bisa dibatalkan jika belum bayar
+  const { data, error: fetchError } = await supabase.from('pesanan').select('status').eq('order_id', orderId).single();
+  if (fetchError || !data) return { success: false, message: 'Pesanan tidak ditemukan' };
+  
+  const allowedStatuses = ['Menunggu Pembayaran', 'PENDING', 'Pending', null, undefined, ''];
+  if (!allowedStatuses.includes(data.status)) {
+    return { success: false, message: 'Pesanan tidak dapat dibatalkan karena sudah diproses' };
+  }
+
+  const { error } = await supabase.from('pesanan').update({ status: 'Dibatalkan' }).eq('order_id', orderId);
+  if (error) return { success: false, message: 'Gagal membatalkan pesanan' };
+  return { success: true, message: 'Pesanan berhasil dibatalkan' };
+}
+
 export async function verifyMember(memberNo: string): Promise<any> {
   const { data, error } = await supabase.from('member').select('*').eq('member_no', memberNo).single();
   if (error || !data) return { success: false, message: 'Member tidak ditemukan' };
