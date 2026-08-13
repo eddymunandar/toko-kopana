@@ -1,0 +1,95 @@
+# ============================================================
+# Deploy otomatis ke Cloudflare Pages
+# ------------------------------------------------------------
+# Berjalan setiap kali branch main berubah (mis. PR di-merge),
+# atau dijalankan manual dari tab Actions ("Run workflow").
+#
+# Menggantikan alur manual di Panduan_Update_Lokal.txt:
+# npm run build lalu menyeret folder out ke dasbor Cloudflare.
+#
+# Membutuhkan 4 repository secret
+# (Settings → Secrets and variables → Actions):
+#
+#   CLOUDFLARE_API_TOKEN          : token API dengan izin Cloudflare Pages
+#   CLOUDFLARE_ACCOUNT_ID         : Account ID Cloudflare
+#   NEXT_PUBLIC_SUPABASE_URL      : dari .env.local
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY : dari .env.local
+#
+# Dua kunci Supabase itu bersifat publik (tertanam di kode situs
+# dan dapat dilihat pengunjung), tetapi tetap disimpan sebagai
+# secret supaya tidak perlu ditulis di dalam berkas ini.
+# ============================================================
+name: Deploy ke Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-cloudflare-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ambil kode
+        uses: actions/checkout@v4
+
+      - name: Siapkan Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Periksa kelengkapan secret
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SB_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SB_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          # Diperiksa lebih dulu agar kegagalan langsung terbaca sebagai
+          # "secret belum diisi", bukan muncul belakangan sebagai galat
+          # Wrangler atau situs yang ter-deploy tanpa koneksi database.
+          kurang=""
+          [ -z "$CF_TOKEN" ]   && kurang="$kurang CLOUDFLARE_API_TOKEN"
+          [ -z "$CF_ACCOUNT" ] && kurang="$kurang CLOUDFLARE_ACCOUNT_ID"
+          [ -z "$SB_URL" ]     && kurang="$kurang NEXT_PUBLIC_SUPABASE_URL"
+          [ -z "$SB_KEY" ]     && kurang="$kurang NEXT_PUBLIC_SUPABASE_ANON_KEY"
+          if [ -n "$kurang" ]; then
+            echo "::error::Secret berikut belum diisi:$kurang — lihat Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "Keempat secret tersedia."
+
+      - name: Pasang dependensi
+        run: npm ci
+
+      - name: Build situs
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: npm run build
+
+      - name: Pastikan hasil build lengkap
+        run: |
+          # Situs ini memakai output: 'export', sehingga hasilnya folder out.
+          # Diperiksa agar folder kosong atau gagal export tidak terlanjur
+          # menimpa situs yang sedang dipakai pelanggan.
+          if [ ! -f out/index.html ]; then
+            echo "::error::out/index.html tidak ada — build gagal atau output bukan static export."
+            exit 1
+          fi
+          if [ ! -f out/favicon.ico ]; then
+            echo "::warning::out/favicon.ico tidak ada; ikon tab mungkin tidak ikut ter-deploy."
+          fi
+          echo "Jumlah berkas dalam out: $(find out -type f | wc -l)"
+
+      - name: Kirim ke Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy out --project-name=toko-kopana --branch=main
