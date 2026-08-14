@@ -192,8 +192,13 @@ export default function AdminOrdersPage() {
                       <div className="font-semibold text-sm text-foreground">{order.customer_name}</div>
                       <div className="text-xs text-foreground/60">{order.customer_phone}</div>
                     </td>
-                    <td className="px-4 py-3 font-bold text-sm">
-                      Rp {Number(order.grand_total).toLocaleString('id-ID')}
+                    <td className="px-4 py-3">
+                      <div className="font-bold text-sm">Rp {Number(order.grand_total).toLocaleString('id-ID')}</div>
+                      {(order.promo_code || Number(order.promo_discount) > 0) && (
+                        <div className="text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded inline-block mt-1">
+                          🏷️ {order.promo_code || 'Promo'} (-Rp{Number(order.promo_discount || 0).toLocaleString('id-ID')})
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-bold px-2 py-1 rounded-full ${statusColor[order.order_status || 'PENDING'] || 'bg-gray-100 text-gray-600'}`}>
