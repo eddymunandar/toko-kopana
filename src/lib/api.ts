@@ -667,23 +667,38 @@ export async function getPromosAdmin(): Promise<any[]> {
 
 export async function savePromo(promoData: any): Promise<any> {
   const { error } = await supabase.from('promo').upsert({
-    id: promoData.id || `PRM-${Date.now()}`,
+    promo_id: promoData.promoId,
     code: promoData.code,
-    discount_amount: promoData.discount_amount,
-    is_active: promoData.is_active
-  });
-  return error ? { success: false } : { success: true };
+    discount_type: promoData.discountType,
+    discount_value: promoData.discountValue,
+    min_purchase: promoData.minPurchase,
+    max_discount: promoData.maxDiscount,
+    is_active: promoData.isActive
+  }, { onConflict: 'promo_id' });
+  return error ? { success: false, message: error.message } : { success: true };
+}
+
+export async function validatePromo(code: string): Promise<any> {
+  const { data, error } = await supabase
+    .from('promo')
+    .select('*')
+    .eq('code', code.toUpperCase())
+    .eq('is_active', true)
+    .single();
+
+  if (error || !data) return { success: false, message: "Kode promo tidak valid atau sudah tidak aktif." };
+  return { success: true, data };
 }
 
 export async function deletePromo(promoId: string): Promise<any> {
-  const { error } = await supabase.from('promo').delete().eq('id', promoId);
+  const { error } = await supabase.from('promo').delete().eq('promo_id', promoId);
   return error ? { success: false } : { success: true };
 }
 
 export async function togglePromoStatus(promoId: string): Promise<any> {
-  const { data } = await supabase.from('promo').select('is_active').eq('id', promoId).single();
+  const { data } = await supabase.from('promo').select('is_active').eq('promo_id', promoId).single();
   if (data) {
-    const { error } = await supabase.from('promo').update({ is_active: !data.is_active }).eq('id', promoId);
+    const { error } = await supabase.from('promo').update({ is_active: !data.is_active }).eq('promo_id', promoId);
     return error ? { success: false } : { success: true };
   }
   return { success: false };

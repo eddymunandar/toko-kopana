@@ -5,7 +5,7 @@ import { useCustomerAuth } from "@/components/CustomerAuthProvider";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { checkout, verifyMember, submitPaymentProof, getStoreSettings, getReferralContacts } from "@/lib/api";
+import { checkout, verifyMember, submitPaymentProof, getStoreSettings, getReferralContacts, validatePromo } from "@/lib/api";
 
 export default function KeranjangPage() {
   const { cart, removeFromCart, updateQuantity, totalPrice, clearCart } = useCart();
@@ -52,6 +52,12 @@ export default function KeranjangPage() {
   const [isDropship, setIsDropship] = useState(false);
   const [referralContacts, setReferralContacts] = useState<any[]>([]);
   const [selectedContactId, setSelectedContactId] = useState("");
+
+  // Promo state
+  const [promoCodeInput, setPromoCodeInput] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<any>(null);
+  const [checkingPromo, setCheckingPromo] = useState(false);
+  const [promoMessage, setPromoMessage] = useState({ type: "", text: "" });
 
   useEffect(() => {
     if (authCustomer) {
@@ -117,6 +123,39 @@ export default function KeranjangPage() {
     }
   };
 
+  const handleApplyPromo = async () => {
+    if (!promoCodeInput.trim()) return;
+    setCheckingPromo(true);
+    setPromoMessage({ type: "", text: "" });
+    setAppliedPromo(null);
+    
+    try {
+      const res = await validatePromo(promoCodeInput.trim());
+      if (res.success && res.data) {
+        const promo = res.data;
+        if (promo.min_purchase && totalPrice < Number(promo.min_purchase)) {
+          setPromoMessage({ type: "error", text: `Minimal belanja Rp ${Number(promo.min_purchase).toLocaleString('id-ID')} untuk promo ini.` });
+        } else {
+          setAppliedPromo(promo);
+          setPromoMessage({ type: "success", text: "Kode promo berhasil digunakan!" });
+        }
+      } else {
+        setPromoMessage({ type: "error", text: res.message || "Kode promo tidak valid." });
+      }
+    } catch (err) {
+      setPromoMessage({ type: "error", text: "Gagal mengecek promo." });
+    } finally {
+      setCheckingPromo(false);
+    }
+  };
+
+  // Calculate final discount from promo
+  const promoDiscount = appliedPromo 
+    ? (appliedPromo.discount_type === 'Persentase' 
+        ? Math.min((totalPrice * Number(appliedPromo.discount_value)) / 100, Number(appliedPromo.max_discount) || Infinity)
+        : Number(appliedPromo.discount_value))
+    : 0;
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !orderId) return;
@@ -169,7 +208,7 @@ export default function KeranjangPage() {
     
     try {
       const shippingFee = customer.shipping === 'delivery' ? (totalPrice >= freeShippingMinSetting ? 0 : shippingFeeSetting) : 0;
-      const grandTotal = totalPrice + shippingFee;
+      const grandTotal = totalPrice + shippingFee - promoDiscount;
       
       const payload = {
         customer: {
@@ -212,8 +251,8 @@ export default function KeranjangPage() {
         influencer_no: customer.influencerNo,
         is_dropship: isDropship,
         payment_method: customer.paymentMethod,
-        promo_code: "",
-        promo_discount: 0
+        promo_code: appliedPromo ? appliedPromo.code : "",
+        promo_discount: promoDiscount
       };
       
       const res = await checkout(payload);
@@ -362,10 +401,55 @@ export default function KeranjangPage() {
               </span>
             </div>
 
+            {/* Promo Code Input */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium mb-2">Punya Kode Voucher?</label>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  value={promoCodeInput}
+                  onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
+                  disabled={appliedPromo !== null}
+                  placeholder="Masukkan kode promo" 
+                  className="w-full px-4 py-2 border border-border rounded-xl focus:outline-none focus:border-primary uppercase"
+                />
+                {appliedPromo ? (
+                  <button 
+                    type="button"
+                    onClick={() => { setAppliedPromo(null); setPromoCodeInput(""); setPromoMessage({type: "", text: ""}); }}
+                    className="px-4 py-2 bg-danger/10 text-danger font-medium rounded-xl hover:bg-danger/20 transition-colors whitespace-nowrap"
+                  >
+                    Hapus
+                  </button>
+                ) : (
+                  <button 
+                    type="button"
+                    onClick={handleApplyPromo}
+                    disabled={checkingPromo || !promoCodeInput.trim()}
+                    className="px-4 py-2 bg-primary text-white font-medium rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {checkingPromo ? "..." : "Terapkan"}
+                  </button>
+                )}
+              </div>
+              {promoMessage.text && (
+                <p className={`text-sm mt-2 font-medium ${promoMessage.type === 'error' ? 'text-red-500' : 'text-green-600'}`}>
+                  {promoMessage.text}
+                </p>
+              )}
+            </div>
+
+            {appliedPromo && (
+              <div className="flex justify-between mb-6 pb-6 border-b border-border text-green-600 font-medium">
+                <span>Diskon Promo ({appliedPromo.code})</span>
+                <span>- Rp {promoDiscount.toLocaleString('id-ID')}</span>
+              </div>
+            )}
+
             <div className="flex justify-between mb-6 text-lg font-black">
               <span>Total</span>
               <span className="text-primary">
-                Rp {(totalPrice + (customer.shipping === 'delivery' ? (totalPrice >= freeShippingMinSetting ? 0 : shippingFeeSetting) : 0)).toLocaleString('id-ID')}
+                Rp {(totalPrice + (customer.shipping === 'delivery' ? (totalPrice >= freeShippingMinSetting ? 0 : shippingFeeSetting) : 0) - promoDiscount).toLocaleString('id-ID')}
               </span>
             </div>
 
