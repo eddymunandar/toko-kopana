@@ -6,6 +6,8 @@ import Footer from "@/components/Footer";
 import BottomNav from "@/components/BottomNav";
 import { CartProvider } from "@/components/CartProvider";
 import { CustomerAuthProvider } from "@/components/CustomerAuthProvider";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { WishlistProvider } from "@/components/WishlistProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -53,16 +55,20 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
       </head>
       <body className={`${inter.className} bg-background text-foreground min-h-screen flex flex-col`}>
-        <CustomerAuthProvider>
-          <CartProvider>
-            <Header />
-            <main className="flex-grow">
-              {children}
-            </main>
-            <Footer />
-            <BottomNav />
-          </CartProvider>
-        </CustomerAuthProvider>
+        <ThemeProvider>
+          <CustomerAuthProvider>
+            <WishlistProvider>
+              <CartProvider>
+                <Header />
+                <main className="flex-grow">
+                  {children}
+                </main>
+                <Footer />
+                <BottomNav />
+              </CartProvider>
+            </WishlistProvider>
+          </CustomerAuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

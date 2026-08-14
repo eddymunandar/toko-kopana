@@ -1,5 +1,6 @@
 "use client";
 import { useCart } from '@/components/CartProvider';
+import { useWishlist } from '@/components/WishlistProvider';
 import { Product } from '@/lib/api';
 
 interface ProductProps extends Product {
@@ -13,6 +14,18 @@ export default function ProductCard(product: ProductProps) {
   const hasPromo = promo_price && Number(promo_price) > 0 && Number(promo_price) < Number(price);
   const displayPrice = hasPromo ? Number(promo_price) : Number(price);
   const { addToCart } = useCart();
+  const { wishlist, addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  
+  const inWishlist = isInWishlist(String(id));
+  
+  const handleWishlistClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (inWishlist) {
+      removeFromWishlist(String(id));
+    } else {
+      addToWishlist(String(id));
+    }
+  };
   
   return (
     <div
@@ -48,6 +61,17 @@ export default function ProductCard(product: ProductProps) {
             </span>
           </div>
         )}
+        {/* Wishlist Button */}
+        <button 
+          onClick={handleWishlistClick}
+          className="absolute top-2 right-2 z-10 p-2 rounded-full bg-white/80 backdrop-blur-sm shadow-sm hover:bg-white transition-colors"
+        >
+          {inWishlist ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#ef4444" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+          )}
+        </button>
       </div>
       
       {/* Product Info */}

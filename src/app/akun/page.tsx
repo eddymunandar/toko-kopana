@@ -2,11 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useCustomerAuth } from "@/components/CustomerAuthProvider";
-import { loginCustomer, registerCustomer, updateCustomerProfile, verifyMember, getCustomerOrders } from "@/lib/api";
+import { useTheme } from "@/components/ThemeProvider";
+import { useWishlist } from "@/components/WishlistProvider";
+import { loginCustomer, registerCustomer, updateCustomerProfile, verifyMember, getCustomerOrders, cancelOrder, getProductsByIds, Product, getNotifications, markNotificationAsRead } from "@/lib/api";
 import Link from "next/link";
 
 export default function AkunPage() {
   const { customer, login, logout, updateProfile } = useCustomerAuth();
+  const { theme, setTheme } = useTheme();
   
   const [isLogin, setIsLogin] = useState(true);
   const [isMember, setIsMember] = useState(false);
@@ -25,15 +28,68 @@ export default function AkunPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   
-  const [activeTab, setActiveTab] = useState<'profil' | 'riwayat'>('profil');
+  const [activeTab, setActiveTab] = useState<'profil' | 'riwayat' | 'wishlist' | 'notifikasi'>('profil');
   const [orders, setOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+
+  const { wishlist, removeFromWishlist } = useWishlist();
+  const [wishlistProducts, setWishlistProducts] = useState<Product[]>([]);
+  const [loadingWishlist, setLoadingWishlist] = useState(false);
+
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'wishlist' && wishlist.length > 0) {
+      loadWishlistProducts();
+    } else if (activeTab === 'wishlist' && wishlist.length === 0) {
+      setWishlistProducts([]);
+    }
+  }, [activeTab, wishlist]);
+
+  const loadWishlistProducts = async () => {
+    setLoadingWishlist(true);
+    try {
+      const data = await getProductsByIds(wishlist);
+      setWishlistProducts(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingWishlist(false);
+    }
+  };
 
   useEffect(() => {
     if (customer && activeTab === 'riwayat') {
       loadOrders();
     }
   }, [customer, activeTab]);
+
+  useEffect(() => {
+    if (customer && activeTab === 'notifikasi') {
+      loadNotifications();
+    }
+  }, [customer, activeTab]);
+
+  const loadNotifications = async () => {
+    if (!customer?.phone) return;
+    setLoadingNotifs(true);
+    try {
+      const data = await getNotifications(customer.phone);
+      setNotifications(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingNotifs(false);
+    }
+  };
+
+  const handleReadNotification = async (id: string, isRead: boolean) => {
+    if (isRead) return;
+    await markNotificationAsRead(id);
+    loadNotifications();
+  };
 
   const loadOrders = async () => {
     if (!customer?.phone) return;
@@ -47,6 +103,33 @@ export default function AkunPage() {
       console.error(err);
     } finally {
       setLoadingOrders(false);
+    }
+  };
+
+  const canCancelOrder = (status: string) => {
+    const cancelableStatuses = ['Menunggu Pembayaran', 'PENDING', 'Pending', '', 'null'];
+    return cancelableStatuses.includes(status) || !status;
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    const confirmed = window.confirm(
+      `Apakah Anda yakin ingin membatalkan pesanan ${orderId}?\n\nPesanan yang sudah dibatalkan tidak dapat dikembalikan.`
+    );
+    if (!confirmed) return;
+
+    setCancelingId(orderId);
+    try {
+      const res = await cancelOrder(orderId);
+      if (res.success) {
+        alert('Pesanan berhasil dibatalkan.');
+        loadOrders(); // Refresh daftar pesanan
+      } else {
+        alert(res.message || 'Gagal membatalkan pesanan');
+      }
+    } catch (err) {
+      alert('Terjadi kesalahan saat membatalkan pesanan');
+    } finally {
+      setCancelingId(null);
     }
   };
 
@@ -183,7 +266,7 @@ export default function AkunPage() {
             </button>
           </div>
           
-          <div className="flex border-b border-neutral-100 mb-6 gap-6">
+          <div className="flex border-b border-neutral-100 mb-6 gap-6 overflow-x-auto whitespace-nowrap hide-scrollbar">
             <button 
               onClick={() => setActiveTab('profil')} 
               className={`pb-3 font-semibold ${activeTab === 'profil' ? 'text-green-600 border-b-2 border-green-600' : 'text-neutral-500 hover:text-neutral-700'}`}
@@ -195,6 +278,21 @@ export default function AkunPage() {
               className={`pb-3 font-semibold ${activeTab === 'riwayat' ? 'text-green-600 border-b-2 border-green-600' : 'text-neutral-500 hover:text-neutral-700'}`}
             >
               Riwayat Pesanan
+            </button>
+            <button 
+              onClick={() => setActiveTab('wishlist')} 
+              className={`pb-3 font-semibold flex gap-2 items-center ${activeTab === 'wishlist' ? 'text-green-600 border-b-2 border-green-600' : 'text-neutral-500 hover:text-neutral-700'}`}
+            >
+              Wishlist Saya
+              {wishlist.length > 0 && (
+                <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">{wishlist.length}</span>
+              )}
+            </button>
+            <button 
+              onClick={() => setActiveTab('notifikasi')} 
+              className={`pb-3 font-semibold flex gap-2 items-center ${activeTab === 'notifikasi' ? 'text-green-600 border-b-2 border-green-600' : 'text-neutral-500 hover:text-neutral-700'}`}
+            >
+              Notifikasi
             </button>
           </div>
 
@@ -273,8 +371,35 @@ export default function AkunPage() {
               {loading ? <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : "Simpan Perubahan"}
             </button>
           </form>
+          
+          <div className="mt-8 border-t pt-6">
+            <h3 className="font-bold text-neutral-800 mb-4">Pengaturan Tampilan</h3>
+            <div className="grid grid-cols-3 gap-3">
+              <button
+                onClick={() => setTheme('light')}
+                className={`py-2 px-3 rounded-xl border ${theme === 'light' ? 'border-green-600 bg-green-50 text-green-700 font-semibold' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'} transition-all flex flex-col items-center gap-1`}
+              >
+                <span className="text-xl">☀️</span>
+                <span className="text-xs">Terang</span>
+              </button>
+              <button
+                onClick={() => setTheme('dark')}
+                className={`py-2 px-3 rounded-xl border ${theme === 'dark' ? 'border-green-600 bg-green-50 text-green-700 font-semibold' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'} transition-all flex flex-col items-center gap-1`}
+              >
+                <span className="text-xl">🌙</span>
+                <span className="text-xs">Gelap</span>
+              </button>
+              <button
+                onClick={() => setTheme('system')}
+                className={`py-2 px-3 rounded-xl border ${theme === 'system' ? 'border-green-600 bg-green-50 text-green-700 font-semibold' : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'} transition-all flex flex-col items-center gap-1`}
+              >
+                <span className="text-xl">🖥️</span>
+                <span className="text-xs">Sistem</span>
+              </button>
+            </div>
+          </div>
           </>
-          ) : (
+          ) : activeTab === 'riwayat' ? (
             <div className="space-y-4">
               {loadingOrders ? (
                 <div className="flex justify-center p-8">
@@ -325,11 +450,93 @@ export default function AkunPage() {
                       <span>Total Tagihan</span>
                       <span className="text-green-700">Rp {Number(o.total || 0).toLocaleString('id-ID')}</span>
                     </div>
+                    {canCancelOrder(o.order_status || o.status) && (
+                      <button
+                        onClick={() => handleCancelOrder(o.order_id)}
+                        disabled={cancelingId === o.order_id}
+                        className="w-full mt-3 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-xl transition-colors disabled:opacity-50 text-sm"
+                      >
+                        {cancelingId === o.order_id ? 'Membatalkan...' : '✕ Batalkan Pesanan'}
+                      </button>
+                    )}
                   </div>
                 ))
               )}
             </div>
-          )}
+          ) : activeTab === 'wishlist' ? (
+            <div className="space-y-4">
+              {loadingWishlist ? (
+                <div className="flex justify-center p-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                </div>
+              ) : wishlistProducts.length === 0 ? (
+                <div className="text-center py-8 text-neutral-500">
+                  <p>Anda belum menyimpan produk ke Wishlist.</p>
+                  <Link href="/#katalog" className="inline-block mt-4 text-green-600 font-semibold hover:underline">
+                    Lihat Katalog Produk
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {wishlistProducts.map((p) => (
+                    <div key={p.id} className="border border-neutral-100 rounded-xl p-3 flex gap-4 items-center">
+                      <div className="w-20 h-20 bg-neutral-100 rounded-lg overflow-hidden shrink-0">
+                        {p.image ? (
+                          <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-neutral-300">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-grow">
+                        <h4 className="font-semibold text-sm line-clamp-2">{p.name}</h4>
+                        <div className="text-green-600 font-bold text-sm mt-1">Rp {p.price.toLocaleString('id-ID')}</div>
+                      </div>
+                      <button 
+                        onClick={() => removeFromWishlist(p.id)}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors shrink-0"
+                        title="Hapus dari Wishlist"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#ef4444" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : activeTab === 'notifikasi' ? (
+            <div className="space-y-4">
+              {loadingNotifs ? (
+                <div className="flex justify-center p-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="text-center py-8 text-neutral-500">
+                  <p>Anda belum memiliki notifikasi.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {notifications.map((n) => (
+                    <div 
+                      key={n.id} 
+                      onClick={() => handleReadNotification(n.id, n.is_read)}
+                      className={`p-4 rounded-xl border cursor-pointer transition-all ${n.is_read ? 'bg-white border-neutral-100 opacity-75' : 'bg-green-50 border-green-200'}`}
+                    >
+                      <div className="flex justify-between items-start gap-4 mb-2">
+                        <h4 className={`font-semibold ${n.is_read ? 'text-neutral-800' : 'text-green-900'}`}>{n.title}</h4>
+                        {!n.is_read && <span className="bg-red-500 w-2.5 h-2.5 rounded-full shrink-0 mt-1.5"></span>}
+                      </div>
+                      <p className={`text-sm ${n.is_read ? 'text-neutral-600' : 'text-green-800'}`}>{n.message}</p>
+                      <div className="text-[10px] text-neutral-400 mt-3 font-medium">
+                        {new Date(n.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
         
         <div className="text-center">

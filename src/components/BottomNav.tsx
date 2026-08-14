@@ -2,11 +2,27 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCart } from './CartProvider';
+import { useCustomerAuth } from './CustomerAuthProvider';
+import { getNotifications } from '@/lib/api';
+import { useEffect, useState } from 'react';
 
 export default function BottomNav() {
   const pathname = usePathname();
   const { cart } = useCart();
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+  
+  const { customer } = useCustomerAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (customer?.phone) {
+      getNotifications(customer.phone).then(notifs => {
+        setUnreadCount(notifs.filter(n => !n.is_read).length);
+      });
+    } else {
+      setUnreadCount(0);
+    }
+  }, [customer, pathname]);
 
   // Hide on admin routes
   if (pathname.startsWith('/admin')) {
@@ -38,7 +54,12 @@ export default function BottomNav() {
       </Link>
 
       <Link href="/akun" className={`flex flex-col items-center p-2 min-w-[64px] ${pathname === '/akun' ? 'text-primary' : 'text-foreground/60'}`}>
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={pathname === '/akun' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-1"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+        <div className="relative">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={pathname === '/akun' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-1"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 h-3 w-3 rounded-full border-2 border-surface flex items-center justify-center"></span>
+          )}
+        </div>
         <span className="text-[10px] font-medium">Akun</span>
       </Link>
     </nav>

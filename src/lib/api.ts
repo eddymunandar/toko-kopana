@@ -51,6 +51,39 @@ export async function getProducts(): Promise<Product[]> {
 }
 
 /**
+ * Mengambil detail produk berdasarkan array ID
+ */
+export async function getProductsByIds(ids: string[]): Promise<Product[]> {
+  if (!ids || ids.length === 0) return [];
+  
+  try {
+    const { data, error } = await supabase
+      .from('produk')
+      .select('*')
+      .in('id', ids)
+      .eq('is_active', true);
+      
+    if (error || !data) return [];
+    
+    return data.map(p => ({
+      id: p.id,
+      name: p.name,
+      price: Number(p.price) || 0,
+      promo_price: Number(p.promo_price) || 0,
+      cost_price: Number(p.cost_price) || 0,
+      image: p.image_url || '',
+      category: p.category_id || 'Lainnya',
+      stock: Number(p.stock) || 0,
+      description: p.description || '',
+      weight: Number(p.weight) || 1000
+    }));
+  } catch (err) {
+    console.error("Error fetching products by ids:", err);
+    return [];
+  }
+}
+
+/**
  * Checkout keranjang belanja
  */
 export async function checkout(payload: any) {
@@ -176,12 +209,53 @@ export async function getCustomerOrders(phone: string): Promise<any[]> {
  * [Admin] Update status pesanan
  */
 export async function updateOrderStatus(orderId: string, newStatus: string, adminName: string = 'Admin'): Promise<any> {
+  // Get customer phone before updating
+  const { data: order } = await supabase.from('pesanan').select('customer_phone').eq('order_id', orderId).single();
+  
   const { error } = await supabase
     .from('pesanan')
     .update({ status: newStatus })
     .eq('order_id', orderId);
+    
+  if (!error && order?.customer_phone) {
+    await createNotification(
+      order.customer_phone,
+      `Status Pesanan ${orderId} Diperbarui`,
+      `Status pesanan Anda sekarang adalah: ${newStatus}`,
+      orderId
+    );
+  }
+    
   return error ? { success: false, message: error.message } : { success: true };
 }
+
+// === NOTIFICATIONS API ===
+export async function createNotification(customerPhone: string, title: string, message: string, orderId?: string) {
+  const { error } = await supabase.from('notifikasi').insert({
+    id: `NOTIF-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    customer_phone: customerPhone,
+    title,
+    message,
+    order_id: orderId,
+    is_read: false
+  });
+  return !error;
+}
+
+export async function getNotifications(customerPhone: string) {
+  const { data } = await supabase
+    .from('notifikasi')
+    .select('*')
+    .eq('customer_phone', customerPhone)
+    .order('created_at', { ascending: false });
+  return data || [];
+}
+
+export async function markNotificationAsRead(id: string) {
+  const { error } = await supabase.from('notifikasi').update({ is_read: true }).eq('id', id);
+  return !error;
+}
+// === END NOTIFICATIONS API ===
 
 /**
  * [Admin] Mengambil data dashboard
