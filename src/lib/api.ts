@@ -148,7 +148,9 @@ export async function checkout(payload: any) {
       courier: payload.courier,
       referral_code: payload.referral_code || payload.influencer_no || payload.member_no || null,
       dropship_name: payload.is_dropship ? (payload.customer_name || payload.customer?.name) : null,
-      dropship_phone: payload.is_dropship ? phone : null
+      dropship_phone: payload.is_dropship ? phone : null,
+      promo_code: payload.promo_code || null,
+      promo_discount: payload.promo_discount || 0
     });
 
     if (error) throw error;
