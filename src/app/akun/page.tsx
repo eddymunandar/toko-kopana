@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useCustomerAuth } from "@/components/CustomerAuthProvider";
 import { useTheme } from "@/components/ThemeProvider";
 import { useWishlist } from "@/components/WishlistProvider";
-import { loginCustomer, registerCustomer, updateCustomerProfile, verifyMember, getCustomerOrders, cancelOrder, getProductsByIds, Product, getNotifications, markNotificationAsRead } from "@/lib/api";
+import { loginCustomer, registerCustomer, updateCustomerProfile, verifyMember, getCustomerOrders, cancelOrder, getProductsByIds, Product, getNotifications, markNotificationAsRead, updateCustomerPassword } from "@/lib/api";
 import Link from "next/link";
 
 export default function AkunPage() {
@@ -32,6 +32,14 @@ export default function AkunPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
+
+  // Change Password state
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
 
   const { wishlist, removeFromWishlist } = useWishlist();
   const [wishlistProducts, setWishlistProducts] = useState<Product[]>([]);
@@ -397,6 +405,90 @@ export default function AkunPage() {
                 <span className="text-xs">Sistem</span>
               </button>
             </div>
+          </div>
+
+          {/* Ganti Password */}
+          <div className="mt-8 border-t pt-6">
+            <h3 className="font-bold text-neutral-800 mb-4">Ganti Password</h3>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setPasswordError("");
+              setPasswordSuccess("");
+              if (newPassword !== confirmPassword) {
+                setPasswordError("Password baru dan konfirmasi tidak cocok.");
+                return;
+              }
+              if (newPassword.length < 6) {
+                setPasswordError("Password baru minimal 6 karakter.");
+                return;
+              }
+              setPasswordLoading(true);
+              try {
+                const check = await loginCustomer({ phone: customer.phone, password: oldPassword });
+                if (!check.success) {
+                  setPasswordError("Password lama tidak sesuai.");
+                  return;
+                }
+                const res = await updateCustomerPassword(customer.phone, newPassword);
+                if (res.success) {
+                  setPasswordSuccess("Password berhasil diubah!");
+                  setOldPassword("");
+                  setNewPassword("");
+                  setConfirmPassword("");
+                } else {
+                  setPasswordError("Gagal mengubah password. Coba lagi.");
+                }
+              } catch (err) {
+                setPasswordError("Terjadi kesalahan. Coba lagi.");
+              } finally {
+                setPasswordLoading(false);
+              }
+            }} className="space-y-3">
+              {passwordError && <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">{passwordError}</div>}
+              {passwordSuccess && <div className="p-3 bg-green-50 text-green-700 rounded-lg text-sm">{passwordSuccess}</div>}
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Password Lama</label>
+                <input
+                  type="password"
+                  className="w-full border border-neutral-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-green-500 outline-none"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  placeholder="Masukkan password lama"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Password Baru</label>
+                <input
+                  type="password"
+                  className="w-full border border-neutral-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-green-500 outline-none"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minimal 6 karakter"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Konfirmasi Password Baru</label>
+                <input
+                  type="password"
+                  className="w-full border border-neutral-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-green-500 outline-none"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Ulangi password baru"
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={passwordLoading}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-xl transition-all disabled:opacity-70 flex justify-center items-center"
+              >
+                {passwordLoading ? (
+                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                ) : "Simpan Password Baru"}
+              </button>
+            </form>
           </div>
           </>
           ) : activeTab === 'riwayat' ? (
